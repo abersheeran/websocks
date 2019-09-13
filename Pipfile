@@ -1,0 +1,16 @@
+[[source]]
+name = "pypi"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+verify_ssl = true
+
+[dev-packages]
+pylint = "*"
+autopep8 = "*"
+pysocks = "*"
+
+[packages]
+websockets = "*"
+uvloop = {version = "*",markers = "sys_platform != 'win32' and sys_platform != 'cygwin' and platform_python_implementation != 'pypy'"}
+
+[requires]
+python_version = "3"
