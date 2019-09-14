@@ -3,6 +3,7 @@ import time
 import json
 import socket
 import asyncio
+import typing
 import logging
 import logging.config
 import threading
@@ -99,6 +100,64 @@ class Socket:
         self.w.close()
 
 
+class WebsocksClient:
+
+    def __init__(self, sock: WebSocketClientProtocol):
+        self.sock = sock
+        self.IPV4 = None
+        self.IPV6 = None
+        self.TCP = None
+        self.UDP = None
+
+    async def recv(self, num: int = 0) -> bytes:
+        try:
+            data = await self.sock.recv()
+        except websockets.exceptions.ConnectionClosed:
+            raise ConnectionResetError('Websocket closed.')
+        logger.debug(f"<<< {data}")
+        return data
+
+    async def send(self, data: websockets.typing.Data) -> int:
+        try:
+            await self.sock.send(data)
+        except websockets.exceptions.ConnectionClosed:
+            raise ConnectionResetError('Websocket closed.')
+        logger.debug(f">>> {data}")
+        return len(data)
+
+    def close(self) -> None:
+        asyncio.run_coroutine_threadsafe(
+            self.sock.close(),
+            asyncio.get_event_loop()
+        )
+
+    async def negotiate(self, username: str, password: str, host: str, port: int, CMD: str = "TCP") -> bool:
+        await self.send(json.dumps({
+            "VERSION": 1,
+            "USERNAME": username,
+            "PASSWORD": password
+        }))
+
+        data = json.loads(await self.recv())
+        try:
+            self.IPV4 = data["IPV4"]
+            self.IPV6 = data["IPV6"]
+            self.TCP = data["TCP"]
+            self.UDP = data["UDP"]
+        except KeyError:
+            raise WebSocksError("Failed to login")
+
+        await self.send(json.dumps({
+            "VERSION": 1,
+            "CMD": CMD,
+            "ADDR": host,
+            "PORT": port
+        }))
+        data = json.loads(await self.recv())
+        if data.get("STATUS") != "SUCCESS":
+            raise WebSocksError("Failed to connect")
+
+
 class BaseAuthentication:
 
     def __init__(self, sock: Socket):
@@ -188,7 +247,7 @@ class BaseSessoin:
             logger.warning(e)
             self.sock.close()
         except NetworkError as e:
-            logger.error(e)
+            logger.debug(e)
             self.sock.close()
         logger.debug(f"Connection {self.sock.address} closed")
 
@@ -271,7 +330,7 @@ class Session(BaseSessoin):
 
     def __init__(self, sock: Socket):
         super().__init__(sock)
-        self.auth = NoAuthentication(self)
+        self.auth = NoAuthentication(sock)
 
     async def socks5_connect(self, ATYP: int, addr: str, port: int):
 
@@ -286,7 +345,7 @@ class Session(BaseSessoin):
                 logger.debug(f">=< {data}")
         try:
             logger.debug(f"Connecting {addr}:{port}")
-            remote = await connect("ws://localhost:8765", "abersheeran", "password", addr, port)
+            remote = await connect(addr, port)
             logger.info(f"Successfully connect {addr}:{port}")
         except NetworkError:
             await self.reply(CONNECTION_REFUSED)
@@ -332,66 +391,18 @@ class SocksServer:
             pass
 
 
-class WebsocksClient:
-
-    def __init__(self, sock: WebSocketClientProtocol):
-        self.sock = sock
-        self.IPV4 = None
-        self.IPV6 = None
-        self.TCP = None
-        self.UDP = None
-
-    async def recv(self, num: int = 0) -> bytes:
-        try:
-            data = await self.sock.recv()
-        except websockets.exceptions.ConnectionClosed:
-            raise ConnectionResetError('Websocket closed.')
-        logger.debug(f"<<< {data}")
-        return data
-
-    async def send(self, data: websockets.typing.Data) -> int:
-        await self.sock.send(data)
-        logger.debug(f">>> {data}")
-        return len(data)
-
-    def close(self) -> None:
-        asyncio.run_coroutine_threadsafe(
-            self.sock.close(),
-            asyncio.get_event_loop()
-        )
-
-    async def negotiate(self, username: str, password: str, host: str, port: int, CMD: str = "TCP") -> bool:
-        await self.send(json.dumps({
-            "VERSION": 1,
-            "USERNAME": username,
-            "PASSWORD": password
-        }))
-
-        data = json.loads(await self.recv())
-        try:
-            self.IPV4 = data["IPV4"]
-            self.IPV6 = data["IPV6"]
-            self.TCP = data["TCP"]
-            self.UDP = data["UDP"]
-        except KeyError:
-            raise WebSocksError("Failed to login")
-
-        await self.send(json.dumps({
-            "VERSION": 1,
-            "CMD": CMD,
-            "ADDR": host,
-            "PORT": port
-        }))
-        data = json.loads(await self.recv())
-        if data.get("STATUS") != "SUCCESS":
-            raise WebSocksError("Failed to connect")
-
-
-async def connect(server: str, username: str, password: str, host: str, port: int, CMD: str = "TCP") -> WebsocksClient:
-    sock = await websockets.connect(server)
-    client = WebsocksClient(sock)
-    await client.negotiate(username, password, host, port, CMD)
-    return client
+async def connect(host: str, port: int, CMD: str = "TCP") -> typing.Union[Socket, WebsocksClient]:
+    try:
+        r, w = await asyncio.open_connection(host=host, port=port)
+        return Socket(r, w)
+    except NetworkError:
+        server = "ws://localhost:8765"
+        username = "abersheeran"
+        password = "password"
+        sock = await websockets.connect(server)
+        client = WebsocksClient(sock)
+        await client.negotiate(username, password, host, port, CMD)
+        return client
 
 
 if __name__ == "__main__":

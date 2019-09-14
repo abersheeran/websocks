@@ -144,7 +144,7 @@ class Session:
             logger.warning(e)
             self.sock.close()
         except NetworkError as e:
-            logger.error(e)
+            logger.debug(e)
             self.sock.close()
         logger.debug(f"Connection {self.sock.address} closed")
 
@@ -180,7 +180,7 @@ class Session:
             r, w = await asyncio.open_connection(data['ADDR'], data['PORT'])
             logger.info(f"Successfully connect {data['ADDR']}:{data['ADDR']}")
         except NetworkError:
-            logger.info(f"Failing connect {data['ADDR']}:{data['ADDR']}")
+            logger.warning(f"Failing connect {data['ADDR']}:{data['ADDR']}")
             await self.sock.send(json.dumps({
                 "VERSION": 1,
                 "STATUS": "ERROR"
