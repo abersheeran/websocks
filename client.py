@@ -393,17 +393,27 @@ class SocksServer:
 
 async def connect(host: str, port: int, CMD: str = "TCP") -> typing.Union[Socket, WebsocksClient]:
     try:
-        r, w = await asyncio.open_connection(host=host, port=port)
+        r, w = await asyncio.wait_for(
+            asyncio.open_connection(host=host, port=port),
+            2
+        )
         return Socket(r, w)
     except NetworkError:
-        server = "ws://localhost:8765"
-        username = "abersheeran"
-        password = "password"
+        pass
+    except asyncio.TimeoutError:
+        pass
+
+    server = "ws://localhost:8765"
+    username = "abersheeran"
+    password = "password"
+    try:
         sock = await websockets.connect(server)
         client = WebsocksClient(sock)
         await client.negotiate(username, password, host, port, CMD)
         return client
-
+    except websockets.exceptions.WebSocketException as e:
+        logger.error(e)
+        raise ConnectionResetError("Websocket Error")
 
 if __name__ == "__main__":
     logging.basicConfig(

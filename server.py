@@ -101,7 +101,9 @@ class Authentication:
 
     def judge(self, username: str, password: str) -> bool:
         """账号密码验证"""
-        return True
+        if username == "abersheeran" and password == "password":
+            return True
+        return False
 
     async def authenticate(self) -> None:
         """身份验证"""
@@ -127,7 +129,7 @@ class Authentication:
             "IPV4": True,
             "IPV6": False,
             "TCP": True,
-            "UDP": True
+            "UDP": False
         }))
 
 
@@ -197,7 +199,7 @@ class Session:
         )
 
     async def udp(self):
-        pass
+        await self.sock.sock.close()
 
 
 class WebsocksServer:
@@ -225,4 +227,4 @@ if __name__ == "__main__":
         datefmt='%Y-%m-%d %H:%M:%S',
     )
 
-    WebsocksServer("localhost").run()
+    WebsocksServer().run()
