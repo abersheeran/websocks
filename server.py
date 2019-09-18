@@ -180,9 +180,9 @@ class Session:
         try:
             logger.debug(f"Connecting {data['ADDR']}:{data['PORT']}")
             r, w = await asyncio.open_connection(data['ADDR'], data['PORT'])
-            logger.info(f"Successfully connect {data['ADDR']}:{data['ADDR']}")
+            logger.info(f"Successfully connect {data['ADDR']}:{data['PORT']}")
         except NetworkError:
-            logger.warning(f"Failing connect {data['ADDR']}:{data['ADDR']}")
+            logger.warning(f"Failing connect {data['ADDR']}:{data['PORT']}")
             await self.sock.send(json.dumps({
                 "VERSION": 1,
                 "STATUS": "ERROR"
