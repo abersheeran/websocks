@@ -10,9 +10,8 @@ except ImportError:
     sys.exit("You must install `socks` to run test.\nlike run `pip install pysocks`")
 
 try:
-    sock = socket.create_connection(("google.com", 80))
-    # sock = socket.create_connection(("google.com", 80))
-    sock.sendall(b"GET / HTTP/1.1\r\n\r\n")
+    sock = socket.create_connection(("abersheeran.com", 80))
+    sock.sendall(b"GET / HTTP/1.1\r\nHost:abersheeran.com\r\n\r\n")
     print(sock.recv(4096))
     sock.close()
 except socket.error:
