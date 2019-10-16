@@ -405,8 +405,8 @@ async def connect(host: str, port: int, CMD: str = "TCP") -> typing.Union[Socket
     except asyncio.TimeoutError:
         pass
 
-    server = "wss://websocks.abersheeran.com"
-    username = "abersheeran"
+    server = "wss://your.server.domain"
+    username = "username"
     password = "password"
     try:
         sock = await websockets.connect(server)
