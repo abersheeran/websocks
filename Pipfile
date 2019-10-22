@@ -7,6 +7,7 @@ verify_ssl = true
 pylint = "*"
 autopep8 = "*"
 pysocks = "*"
+scf = "*"
 
 [packages]
 websockets = "*"

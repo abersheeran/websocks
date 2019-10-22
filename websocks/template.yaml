@@ -1,0 +1,29 @@
+Resources:
+  default:
+    Type: TencentCloud::Serverless::Namespace
+    websocks:
+      Type: TencentCloud::Serverless::Function
+      Properties:
+        CodeUri: ./
+        Type: Event
+        Description: Websocks
+        Role: QCS_SCFExcuteRole
+        Environment:
+          Variables:
+            ENV_FIRST: env1
+            ENV_SECOND: env2
+        Handler: index.main_handler
+        MemorySize: 128
+        Runtime: Python3.6
+        Timeout: 600
+        Events:
+          websocks_apigw:  # ${FunctionName} + '_apigw'
+            Type: APIGW
+            Properties:
+              StageName: release
+              ServiceId:
+              HttpMethod: ANY
+
+Globals:
+  Function:
+    Timeout: 600

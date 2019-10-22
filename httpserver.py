@@ -1,5 +1,4 @@
 import sys
-import json
 import socket
 import asyncio
 import typing
@@ -8,10 +7,7 @@ import logging
 import logging.config
 from http import HTTPStatus
 
-import websockets
-from websockets import WebSocketClientProtocol
-
-logger: logging.Logger = logging.getLogger("websocks")
+logger: logging.Logger = logging.getLogger("httpserver")
 
 
 if sys.platform == 'win32':  # use IOCP in windows
@@ -27,12 +23,7 @@ else:  # try to use uvloop
         pass
 
 
-class WebSocksError(Exception):
-    pass
-
-
 NetworkError = (
-    TimeoutError,
     ConnectionError,
     ConnectionAbortedError,
     ConnectionRefusedError,
@@ -48,14 +39,18 @@ NetworkError = (
 class Socket:
 
     def __init__(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter
+            self,
+            reader: asyncio.StreamReader,
+            writer: asyncio.StreamWriter
     ) -> None:
         self.r = reader
         self.w = writer
         self.__socket = writer.get_extra_info('socket')
         self.__address = writer.get_extra_info('peername')
+
+    @property
+    def socket(self) -> socket.socket:
+        return self.__socket
 
     @property
     def address(self) -> typing.Tuple[str, int]:
@@ -72,87 +67,6 @@ class Socket:
 
     def close(self) -> None:
         self.w.close()
-
-
-class WebsocksClient:
-
-    def __init__(self, sock: WebSocketClientProtocol) -> None:
-        self.sock = sock
-
-    async def recv(self, num: int = 0) -> bytes:
-        try:
-            data = await self.sock.recv()
-        except websockets.exceptions.ConnectionClosed:
-            raise ConnectionResetError('Websocket closed.')
-        logger.debug(f"<<< {data}")
-        return data
-
-    async def send(self, data: websockets.typing.Data) -> int:
-        try:
-            await self.sock.send(data)
-        except websockets.exceptions.ConnectionClosed:
-            raise ConnectionResetError('Websocket closed.')
-        logger.debug(f">>> {data}")
-        return len(data)
-
-    def close(self) -> None:
-        asyncio.run_coroutine_threadsafe(
-            self.sock.close(),
-            asyncio.get_event_loop()
-        )
-
-    async def negotiate(self, username: str, password: str, host: str, port: int, CMD: str = "TCP") -> bool:
-        await self.send(json.dumps({
-            "VERSION": 1,
-            "USERNAME": username,
-            "PASSWORD": password
-        }))
-
-        data = json.loads(await self.recv())
-        try:
-            self.IPV4 = data["IPV4"]
-            self.IPV6 = data["IPV6"]
-            self.TCP = data["TCP"]
-            self.UDP = data["UDP"]
-        except KeyError:
-            raise WebSocksError("Failed to login")
-
-        await self.send(json.dumps({
-            "VERSION": 1,
-            "CMD": CMD,
-            "ADDR": host,
-            "PORT": port
-        }))
-        data = json.loads(await self.recv())
-        if data.get("STATUS") != "SUCCESS":
-            raise WebSocksError("Failed to connect")
-
-
-async def connect(host: str, port: int, CMD: str = "TCP") -> typing.Union[Socket, WebsocksClient]:
-    try:
-        r, w = await asyncio.wait_for(
-            asyncio.open_connection(host=host, port=port),
-            2
-        )
-        return Socket(r, w)
-    except NetworkError:
-        pass
-    except asyncio.TimeoutError:
-        pass
-
-    server = "wss://websocks.abersheeran.com"
-    username = "abersheeran"
-    password = "password"
-    try:
-        sock = await websockets.connect(server)
-        client = WebsocksClient(sock)
-        await client.negotiate(username, password, host, port, CMD)
-        return client
-    except websockets.exceptions.WebSocketException as e:
-        logger.error(e)
-        raise ConnectionResetError("Websocket Error")
-    except WebSocksError:
-        raise ConnectionRefusedError("Websocks Error")
 
 
 class HTTPServer:
@@ -192,16 +106,16 @@ class HTTPServer:
 
         # parse HTTP CONNECT
         raw_request = await sock.recv(1024)
-        method, hostport, _ = raw_request.splitlines()[0].decode("ASCII").split(" ")
+        method, hostport, version = raw_request.splitlines()[0].decode("ASCII").split(" ")
         host, port = hostport.split(":")
         logger.info(f"Connection from {sock.address}. Request to ('{host}', {port})")
 
         try:
-            remote = await connect(host, int(port))
-            # r, w = await asyncio.wait_for(asyncio.open_connection(
-            #     host, int(port), loop=asyncio.get_event_loop()
-            # ), 2)
-            # remote = Socket(r, w)
+            # remote = await connect(host, int(port))
+            r, w = await asyncio.wait_for(asyncio.open_connection(
+                host, int(port), loop=asyncio.get_event_loop()
+            ), 2)
+            remote = Socket(r, w)
         except asyncio.TimeoutError:
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
             sock.close()
@@ -222,7 +136,7 @@ class HTTPServer:
         )
         logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
 
-        def exit(_, __):
+        def exit(signo, frame):
             server.close()
             logger.info(f"HTTP Server has closed.")
             raise SystemExit(0)

@@ -4,7 +4,7 @@ import traceback
 
 try:
     import socks
-    socks.set_default_proxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 8080)
+    socks.set_default_proxy(socks.PROXY_TYPE_HTTP, "127.0.0.1", 3128)
     socket.socket = socks.socksocket
 except ImportError:
     sys.exit("You must install `socks` to run test.\nlike run `pip install pysocks`")
@@ -12,6 +12,7 @@ except ImportError:
 try:
     sock = socket.create_connection(("abersheeran.com", 80))
     sock.sendall(b"GET / HTTP/1.1\r\nHost:abersheeran.com\r\n\r\n")
+    sock.recv(4096)
     print(sock.recv(4096))
     sock.close()
 except socket.error:
