@@ -6,7 +6,7 @@ import logging
 import logging.config
 from http import HTTPStatus
 
-from .utils import TCPSocket, bridge, connect_server
+from .utils import TCPSocket, bridge, connect_server, create_connection
 
 logger: logging.Logger = logging.getLogger("websocks")
 
@@ -45,11 +45,14 @@ class HTTPServer:
         method, hostport, version = raw_request.splitlines()[0].decode("ASCII").split(" ")
         host, port = hostport.split(":")
         try:
-            remote = await connect_server("ws://127.0.0.1:8765", {
-                "TARGET": host,
-                "PORT": port,
-                "Proxy-Authorization": get_credentials()
-            })
+            try:
+                remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
+            except asyncio.TimeoutError:
+                remote = await connect_server("ws://127.0.0.1:8765", {
+                    "TARGET": host,
+                    "PORT": port,
+                    "Proxy-Authorization": get_credentials()
+                })
         except asyncio.TimeoutError:
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
             await sock.close()
