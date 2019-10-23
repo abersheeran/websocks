@@ -41,7 +41,7 @@ websocks 分两个部分： `client` 与 `server`。
 ```python
 version: '3.3'
 services:
-  web:
+  websocks:
     image: abersheeran/websocks
     command: python3 -m websocks.server
     environment:
@@ -55,7 +55,7 @@ services:
 ```python
 version: '3.3'
 services:
-  web:
+  websocks:
     image: abersheeran/websocks
     command: python3 -m websocks.client
     environment:
