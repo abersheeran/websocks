@@ -28,7 +28,7 @@ websocks 分两个部分： `client` 与 `server`。
 
 - 启动客户端使用： `pipenv run python -m websocks.client`
 
-在启动服务端后，应使用 nginx 等反向代理服务器进行反向代理，并配置 SSL 证书。
+在启动服务端后，应使用 nginx 等反向代理服务器进行反向代理，并配置 SSL 证书。如果能够配置 CDN 代理 websocket 连接，那是最好的。
 
 在启动客户端后，可使用 [proxifier](https://www.proxifier.com/) 等工具将本地 TCP 走 websocks 的代理。**websocks 并不会愚蠢的把你所有数据流量都通过远程服务器发送，所以尽可放心。**
 
