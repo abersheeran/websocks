@@ -1,3 +1,4 @@
+import os
 import base64
 import signal
 import asyncio
@@ -12,8 +13,8 @@ logger: logging.Logger = logging.getLogger("websocks")
 
 
 def get_credentials() -> str:
-    username = "abersheeran"
-    password = "websocks"
+    username = os.environ['WEBSOCKS_USER']
+    password = os.environ['WEBSOCKS_PASS']
     return "Basic " + base64.b64encode(f"{username}:{password}".encode("utf8")).decode("utf8")
 
 
@@ -51,7 +52,7 @@ class HTTPServer:
             try:
                 remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
             except asyncio.TimeoutError:
-                remote = await connect_server("ws://127.0.0.1:8765", {
+                remote = await connect_server(os.environ['WEBSOCKS_SERVER'], {
                     "TARGET": host,
                     "PORT": port,
                     "Proxy-Authorization": get_credentials()

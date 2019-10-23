@@ -1,3 +1,4 @@
+import os
 import http
 import signal
 import typing
@@ -51,7 +52,10 @@ class WebsocksServer:
         # parse credentials
         _type, _credentials = request_headers.get('Proxy-Authorization').split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
-        if not (username == "abersheeran" or password == "websocks"):
+        if not (
+                username == os.environ['WEBSOCKS_USER'] or
+                password == os.environ['WEBSOCKS_PASS']
+        ):
             return http.HTTPStatus.NOT_FOUND, {}, b""
         # parse target host & port
         host, port = self.get_target(request_headers)
