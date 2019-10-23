@@ -32,6 +32,41 @@ websocks 分两个部分： `client` 与 `server`。
 
 在启动客户端后，可使用 [proxifier](https://www.proxifier.com/) 等工具将本地 TCP 走 websocks 的代理。**websocks 并不会愚蠢的把你所有数据流量都通过远程服务器发送，所以尽可放心。**
 
+### 通过 docker 启动
+
+如果你的PC/服务器上没有安装 Python3.6+，并且你并不想安装，那么可以使用 docker 去启动 websocks。
+
+以下分别为服务端和客户端的 `docker-compose.yml` 样例。
+
+```python
+version: '3.3'
+services:
+  web:
+    image: abersheeran/websocks
+    command: python3 -m websocks.server
+    environment:
+      WEBSOCKS_USER: your username
+      WEBSOCKS_PASS: your password
+    ports:
+      - "8765:8765"
+    restart: always
+```
+
+```python
+version: '3.3'
+services:
+  web:
+    image: abersheeran/websocks
+    command: python3 -m websocks.client
+    environment:
+      WEBSOCKS_USER: your username
+      WEBSOCKS_PASS: your password
+      WEBSOCKS_SERVER: wss://your-server
+    ports:
+      - "3128:3128"
+    restart: always
+```
+
 ## 将要做的
 
 - [ ] 集成 [GFWList](https://github.com/gfwlist)，更快的分辨是否代理
