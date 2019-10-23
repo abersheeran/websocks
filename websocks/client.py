@@ -35,9 +35,13 @@ class HTTPServer:
     async def connect(self, sock: TCPSocket) -> None:
 
         async def reply(status_code: HTTPStatus) -> None:
-            await sock.send(f"HTTP/1.1 {status_code.value} {status_code.phrase}\r\n".encode("ASCII"))
-            await sock.send(f"Server: {asyncio.get_event_loop_policy()}".encode("ASCII"))
-            await sock.send(b"\r\n\r\n")
+            await sock.send(
+                (
+                    f"HTTP/1.1 {status_code.value} {status_code.phrase}"
+                    f"\r\nServer: O-O"
+                    f"\r\n\r\n"
+                ).encode("latin1")
+            )
 
         # parse HTTP CONNECT
         raw_request = await sock.recv()
