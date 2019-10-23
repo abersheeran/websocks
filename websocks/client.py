@@ -30,10 +30,9 @@ class HTTPServer:
             reader._buffer.insert(index, data)
         method = firstline.decode("ASCII").split(" ")[0]
         if hasattr(self, method.lower()):
-            await getattr(self, method.lower())(reader, writer)
+            await getattr(self, method.lower())(TCPSocket(reader, writer))
 
-    async def connect(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        sock = TCPSocket(reader, writer)
+    async def connect(self, sock: TCPSocket) -> None:
 
         async def reply(status_code: HTTPStatus) -> None:
             await sock.send(f"HTTP/1.1 {status_code.value} {status_code.phrase}\r\n".encode("ASCII"))
