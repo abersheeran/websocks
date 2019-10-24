@@ -68,7 +68,7 @@ class HTTPServer:
                     "Proxy-Authorization": get_credentials()
                 })
                 if isinstance(e, asyncio.TimeoutError):
-                    add(remote)
+                    add(host)
                 logger.info(f"Proxy: {host}:{port}")
         except asyncio.TimeoutError:
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
