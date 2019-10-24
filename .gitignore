@@ -4,3 +4,5 @@
 *.py[cod]
 
 .env
+
+rule.json

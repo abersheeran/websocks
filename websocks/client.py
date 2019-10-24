@@ -4,10 +4,12 @@ import signal
 import asyncio
 import typing
 import logging
+import traceback
 import logging.config
 from http import HTTPStatus
 
 from .utils import TCPSocket, bridge, connect_server, create_connection
+from .rule import judge, add
 
 logger: logging.Logger = logging.getLogger("websocks")
 
@@ -16,6 +18,10 @@ def get_credentials() -> str:
     username = os.environ['WEBSOCKS_USER']
     password = os.environ['WEBSOCKS_PASS']
     return "Basic " + base64.b64encode(f"{username}:{password}".encode("utf8")).decode("utf8")
+
+
+class DirectException(Exception):
+    pass
 
 
 class HTTPServer:
@@ -48,21 +54,33 @@ class HTTPServer:
         raw_request = await sock.recv()
         method, hostport, version = raw_request.splitlines()[0].decode("ASCII").split(" ")
         host, port = hostport.split(":")
+
         try:
             try:
+                if judge(host):
+                    raise DirectException(f"{host}")
                 remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
-            except asyncio.TimeoutError:
+                logger.info(f"Direct: {host}:{port}")
+            except (asyncio.TimeoutError, DirectException) as e:
                 remote = await connect_server(os.environ['WEBSOCKS_SERVER'], {
                     "TARGET": host,
                     "PORT": port,
                     "Proxy-Authorization": get_credentials()
                 })
+                if isinstance(e, asyncio.TimeoutError):
+                    add(remote)
+                logger.info(f"Proxy: {host}:{port}")
         except asyncio.TimeoutError:
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
             await sock.close()
+            logger.warning(f"Proxy Timeout: {host}:{port}")
+            return
         except Exception:
             await reply(HTTPStatus.BAD_GATEWAY)
             await sock.close()
+            logger.error(f"Unknown Error: {host}:{port}")
+            traceback.print_exc()
+            return
         else:
             await reply(HTTPStatus.OK)
             await bridge(sock, remote)

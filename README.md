@@ -69,6 +69,6 @@ services:
 
 ## 将要做的
 
-- [ ] 集成 [GFWList](https://github.com/gfwlist)，更快的分辨是否代理
+- [ ] 支持 websocket 连接复用
 
 - [ ] 支持多用户名. 支持流量统计.
