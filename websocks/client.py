@@ -59,7 +59,7 @@ class HTTPServer:
             try:
                 if judge(host):
                     raise DirectException(f"{host}")
-                remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
+                remote = await asyncio.wait_for(create_connection(host, port), timeout=5)
                 logger.info(f"Direct: {host}:{port}")
             except (asyncio.TimeoutError, DirectException) as e:
                 remote = await connect_server(os.environ['WEBSOCKS_SERVER'], {
