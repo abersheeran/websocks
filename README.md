@@ -14,11 +14,11 @@ websocks 分两个部分： `client` 与 `server`。
 
 在项目根目录创建 `.env` 文件，在其中配置环境变量：
 
-* WEBSOCKS_USER： 用户名
-
-* WEBSOCKS_PASS： 密码
-
-* WEBSOCKS_SERVER： 服务器地址
+```.env
+WEBSOCKS_USER=用户名
+WEBSOCKS_PASS=密码
+WEBSOCKS_SERVER=服务器地址
+```
 
 其中，服务器地址应为 `wss://your-domain` 形式。
 
