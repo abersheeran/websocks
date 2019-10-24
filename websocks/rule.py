@@ -18,7 +18,7 @@ def _read() -> None:
 
 def _write() -> None:
     with open(f"{here}/rule.json", "w") as file:
-        json.dump(list(cache), file)
+        json.dump(list(cache), file, indent=4)
 
 
 def judge(host: str) -> bool:
