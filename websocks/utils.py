@@ -76,7 +76,10 @@ async def bridge(local: Socket, remote: Socket) -> None:
                     break
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
-        except ConnectionResetError:
+        except (
+            ConnectionResetError,
+            ConnectionAbortedError
+        ):
             pass
 
     await asyncio.gather(

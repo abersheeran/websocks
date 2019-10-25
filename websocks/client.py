@@ -1,11 +1,11 @@
 import os
+import time
 import base64
 import signal
 import asyncio
 import typing
 import logging
 import traceback
-import logging.config
 from http import HTTPStatus
 
 from .utils import TCPSocket, bridge, connect_server, create_connection
@@ -57,10 +57,12 @@ class HTTPServer:
 
         try:
             try:
+                start_time = time.time()
+
                 if judge(host):
                     raise DirectException(f"{host}")
                 remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
-                logger.info(f"Direct: {host}:{port}")
+                logger.info(f"{time.time() - start_time:02.3f} Direct: {host}:{port}")
             except (asyncio.TimeoutError, DirectException) as e:
                 remote = await connect_server(os.environ['WEBSOCKS_SERVER'], {
                     "TARGET": host,
@@ -69,7 +71,7 @@ class HTTPServer:
                 })
                 if isinstance(e, asyncio.TimeoutError):
                     add(host)
-                logger.info(f"Proxy: {host}:{port}")
+                logger.info(f"{time.time() - start_time:02.3f} Proxy: {host}:{port}")
         except asyncio.TimeoutError:
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
             await sock.close()
