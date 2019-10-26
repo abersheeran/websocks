@@ -14,3 +14,7 @@ class Socket(metaclass=ABCMeta):
     @abstractmethod
     async def close(self) -> None:
         raise NotImplementedError()
+
+    @abstractmethod
+    def closed(self) -> bool:
+        raise NotImplementedError()

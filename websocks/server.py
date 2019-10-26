@@ -1,4 +1,5 @@
 import os
+import json
 import http
 import signal
 import typing
@@ -21,30 +22,28 @@ class WebsocksServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 8765):
         self.host = host
         self.port = port
-        self.freepool: typing.Dict[str, TCPSocket] = {}
-
-    @staticmethod
-    def get_target(headers: Headers) -> typing.Tuple[str, int]:
-        host = headers.get("TARGET")
-        port = headers.get("PORT")
-        return host, port
-
-    async def connect(self, host: str, port: int) -> None:
-        key = f"{host}:{port}"
-        remote_socket = await create_connection(host, port)
-        if key not in self.freepool:
-            self.freepool[key] = [remote_socket]
-        else:
-            self.freepool[key].append(remote_socket)
-
-    def get_connection(self, host: str, port: int) -> None:
-        key = f"{host}:{port}"
-        return self.freepool[key].pop()
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
-        host, port = self.get_target(sock.request_headers)
-        remote = self.get_connection(host, port)
-        await bridge(WebSocket(sock), remote)
+        try:
+            while True:
+                data = await sock.recv()
+                assert isinstance(data, str)
+                request = json.loads(data)
+                remote = await create_connection(
+                    request['HOST'],
+                    request['PORT']
+                )
+                await bridge(WebSocket(sock), remote)
+                # 清理连接
+                if not remote.closed():
+                    await remote.close()
+                # websocket 中断
+                if sock.closed():
+                    break
+        except AssertionError:
+            await sock.close()
+        except KeyError:
+            await sock.close()
 
     async def handshake(
         self, path: str, request_headers: Headers
@@ -57,15 +56,6 @@ class WebsocksServer:
                 password == os.environ['WEBSOCKS_PASS']
         ):
             return http.HTTPStatus.NOT_FOUND, {}, b""
-        # parse target host & port
-        host, port = self.get_target(request_headers)
-        if not(host and port):
-            return http.HTTPStatus.NOT_FOUND, {}, b""
-        try:
-            await self.connect(host, port)
-        except Exception:
-            return http.HTTPStatus.GATEWAY_TIMEOUT, {}, b""
-        return None
 
     async def run_server(self) -> typing.NoReturn:
         async with websockets.serve(

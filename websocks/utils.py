@@ -18,15 +18,20 @@ class TCPSocket(Socket):
 
     async def recv(self) -> bytes:
         data = await self.r.read(4096)
+        logger.debug(f"<<< {data}")
         return data
 
     async def send(self, data: bytes) -> int:
         self.w.write(data)
         await self.w.drain()
+        logger.debug(f">>> {data}")
         return len(data)
 
-    async def close(self):
+    async def close(self) -> None:
         self.w.close()
+
+    def closed(self) -> bool:
+        return self.w.is_closing()
 
 
 class WebSocket(Socket):
@@ -40,6 +45,8 @@ class WebSocket(Socket):
         except websockets.exceptions.ConnectionClosed:
             raise ConnectionResetError('Websocket closed.')
         logger.debug(f"<<< {data}")
+        if isinstance(data, str):
+            raise TypeError()
         return data
 
     async def send(self, data: bytes) -> int:
@@ -50,8 +57,11 @@ class WebSocket(Socket):
         logger.debug(f">>> {data}")
         return len(data)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.sock.close()
+
+    def closed(self) -> bool:
+        return self.sock.closed()
 
 
 async def create_connection(host: str, port: int) -> TCPSocket:
@@ -60,17 +70,14 @@ async def create_connection(host: str, port: int) -> TCPSocket:
     return TCPSocket(r, w)
 
 
-async def connect_server(url: int, headers: typing.Mapping[str, str]) -> WebSocket:
-    """connect to  websocket server"""
-    sock = await websockets.connect(url, extra_headers=headers)
-    return WebSocket(sock)
-
-
 async def bridge(local: Socket, remote: Socket) -> None:
 
-    async def _s(sender: Socket, receiver: Socket) -> None:
+    alive = True
+
+    async def b(sender: Socket, receiver: Socket) -> None:
+        nonlocal alive
         try:
-            while True:
+            while alive:
                 data = await sender.recv()
                 if not data:
                     break
@@ -81,10 +88,18 @@ async def bridge(local: Socket, remote: Socket) -> None:
             ConnectionAbortedError
         ):
             pass
+        except TypeError:
+            await sender.close()
 
-    await asyncio.gather(
-        _s(remote, local),
-        _s(local, remote)
-    )
-    await remote.close()
-    await local.close()
+        alive = False
+
+    loop = asyncio.get_event_loop()
+
+    task = loop.call_soon(asyncio.gather(
+        b(remote, local),
+        b(local, remote)
+    ))
+
+    while alive:
+        await asyncio.sleep(0.7)
+    task.cancel()
