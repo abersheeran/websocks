@@ -30,14 +30,40 @@ class DirectException(Exception):
 class Pool:
 
     def __init__(self, initsize: int = 7) -> None:
+        self.initsize = initsize
         self._freepool = set()
         asyncio.run_coroutine_threadsafe(
             self.init(initsize),
             asyncio.get_event_loop()
         )
+        self.timed_task()
 
     async def init(self, size: int) -> None:
         await asyncio.gather(*[self._create() for _ in range(size)])
+
+    def timed_task(self) -> None:
+
+        async def _timed_task() -> None:
+            while True:
+                await asyncio.sleep(7)
+                for sock in self._freepool:
+                    if sock.closed:
+                        self._freepool.remove(sock)
+
+                sub = self.initsize - len(self._freepool)
+
+                if sub > 0:
+                    await self.init(sub)
+                    continue
+
+                while len(self._freepool) > self.initsize * 2:
+                    sock = self._freepool.pop()
+                    await sock.close()
+
+        asyncio.run_coroutine_threadsafe(
+            _timed_task(),
+            asyncio.get_event_loop()
+        )
 
     async def acquire(self) -> websockets.WebSocketClientProtocol:
         while True:
