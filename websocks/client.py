@@ -100,8 +100,8 @@ class HTTPServer:
         try:
             try:
                 start_time = time.time()
-                # if judge(host):
-                raise DirectException(f"{host}")
+                if judge(host):
+                    raise DirectException(f"{host}")
                 remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
                 logger.info(f"{time.time() - start_time:02.3f} Direct: {host}:{port}")
             except (asyncio.TimeoutError, DirectException) as e:
