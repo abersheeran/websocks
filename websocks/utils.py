@@ -86,7 +86,7 @@ async def bridge(local: Socket, remote: Socket) -> None:
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
         except TypeError:
-            await sender.close()
+            await receiver.close()
         except (
             ConnectionAbortedError,
             ConnectionResetError

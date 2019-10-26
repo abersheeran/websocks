@@ -134,7 +134,8 @@ class HTTPServer:
             await reply(HTTPStatus.OK)
             await bridge(sock, WebSocket(remote))
             await self.pool.release(remote)
-            await sock.close()
+            if not sock.closed:
+                await sock.close()
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(
