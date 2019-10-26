@@ -31,7 +31,6 @@ class Pool:
 
     def __init__(self, initsize: int = 7) -> None:
         self._freepool = set()
-        self._busypool = set()
         asyncio.run_coroutine_threadsafe(
             self.init(initsize),
             asyncio.get_event_loop()
@@ -46,14 +45,12 @@ class Pool:
                 sock = self._freepool.pop()
                 if sock.closed:
                     continue
-                self._busypool.add(sock)
                 return sock
             except KeyError:
                 await self._create()
 
     async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
         self._freepool.add(sock)
-        self._busypool.remove(sock)
 
     async def _create(self):
         sock = await websockets.connect(
@@ -132,8 +129,11 @@ class HTTPServer:
             return
         else:
             await reply(HTTPStatus.OK)
-            await bridge(sock, WebSocket(remote))
-            await self.pool.release(remote)
+            if isinstance(remote, websockets.WebSocketCommonProtocol):
+                await bridge(sock, WebSocket(remote))
+                await self.pool.release(remote)
+            else:
+                await bridge(sock, remote)
             if not sock.closed:
                 await sock.close()
 
