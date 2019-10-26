@@ -93,13 +93,16 @@ async def bridge(local: Socket, remote: Socket) -> None:
 
         alive = False
 
-    loop = asyncio.get_event_loop()
-
-    task = loop.call_soon(asyncio.gather(
+    task_0 = asyncio.run_coroutine_threadsafe(
         b(remote, local),
-        b(local, remote)
-    ))
-
+        asyncio.get_event_loop()
+    )
+    task_1 = asyncio.run_coroutine_threadsafe(
+        b(local, remote),
+        asyncio.get_event_loop()
+    )
     while alive:
         await asyncio.sleep(0.7)
-    task.cancel()
+
+    task_0.cancel()
+    task_1.cancel()
