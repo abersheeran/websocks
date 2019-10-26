@@ -109,8 +109,8 @@ async def bridge(local: Socket, remote: Socket) -> None:
     task_0.cancel()
     task_1.cancel()
 
-    while task_0.cancelled:
+    while not task_0.cancelled:
         await asyncio.sleep(0.5)
 
-    while task_1.cancelled:
+    while not task_1.cancelled:
         await asyncio.sleep(0.5)
