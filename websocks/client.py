@@ -97,19 +97,23 @@ class HTTPServer:
         try:
             try:
                 start_time = time.time()
-                if judge(host):
+                r = judge(host)
+                if r:
                     raise DirectException(f"{host}")
-                remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
+                if r is None:
+                    remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
+                else:
+                    remote = await create_connection(host, port)
                 logger.info(f"{time.time() - start_time:02.3f} Direct: {host}:{port}")
             except (asyncio.TimeoutError, DirectException) as e:
                 remote = await self.pool.acquire()
-                if isinstance(e, asyncio.TimeoutError):
-                    add(host)
                 await remote.send(json.dumps({"HOST": host, "PORT": port}))
                 resp = await remote.recv()
                 assert isinstance(resp, str)
                 if not json.loads(resp)['ALLOW']:
                     raise ConnectionRefusedError()
+                if isinstance(e, asyncio.TimeoutError):
+                    add(host)
                 logger.info(f"{time.time() - start_time:02.3f} Proxy: {host}:{port}")
         except (asyncio.TimeoutError, ConnectionRefusedError):
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
@@ -134,6 +138,7 @@ class HTTPServer:
                 await self.pool.release(remote)
             else:
                 await bridge(sock, remote)
+                await remote.close()
             if not sock.closed:
                 await sock.close()
 
