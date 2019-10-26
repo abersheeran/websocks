@@ -32,19 +32,19 @@ class Pool:
     def __init__(self, initsize: int = 7) -> None:
         self._freepool = set()
         self._busypool = set()
-        self.init(initsize)
-
-    def init(self, size: int) -> None:
-        loop = asyncio.get_event_loop()
-        loop.call_soon_threadsafe(
-            asyncio.gather(*[self._create() for _ in range(size)])
+        asyncio.run_coroutine_threadsafe(
+            self.init(initsize),
+            asyncio.get_event_loop()
         )
+
+    async def init(self, size: int) -> None:
+        await asyncio.gather(*[self._create() for _ in range(size)])
 
     async def acquire(self) -> websockets.WebSocketClientProtocol:
         while True:
             try:
                 sock = self._freepool.pop()
-                if sock.closed():
+                if sock.closed:
                     continue
                 self._busypool.add(sock)
                 return sock
@@ -100,12 +100,12 @@ class HTTPServer:
         try:
             try:
                 start_time = time.time()
-                if judge(host):
-                    raise DirectException(f"{host}")
+                # if judge(host):
+                raise DirectException(f"{host}")
                 remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
                 logger.info(f"{time.time() - start_time:02.3f} Direct: {host}:{port}")
             except (asyncio.TimeoutError, DirectException) as e:
-                remote = self.pool.acquire()
+                remote = await self.pool.acquire()
                 if isinstance(e, asyncio.TimeoutError):
                     add(host)
                 await remote.send(json.dumps({"HOST": host, "PORT": port}))
@@ -133,7 +133,7 @@ class HTTPServer:
         else:
             await reply(HTTPStatus.OK)
             await bridge(sock, WebSocket(remote))
-            self.pool.release(remote)
+            await self.pool.release(remote)
             await sock.close()
 
     async def run_server(self) -> typing.NoReturn:

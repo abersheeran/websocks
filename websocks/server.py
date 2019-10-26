@@ -24,26 +24,38 @@ class WebsocksServer:
         self.port = port
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
+        logger.info(f"Connect from {sock.remote_address}")
         try:
             while True:
                 data = await sock.recv()
                 assert isinstance(data, str)
                 request = json.loads(data)
-                remote = await create_connection(
-                    request['HOST'],
-                    request['PORT']
-                )
+                try:
+                    remote = await create_connection(
+                        request['HOST'],
+                        request['PORT']
+                    )
+                    await sock.send(json.dumps({"ALLOW": True}))
+                except (
+                    ConnectionRefusedError,
+                    asyncio.TimeoutError,
+                    TimeoutError
+                ):
+                    await sock.send(json.dumps({"ALLOW": False}))
+                    continue
                 await bridge(WebSocket(sock), remote)
                 # 清理连接
-                if not remote.closed():
+                if not remote.closed:
                     await remote.close()
                 # websocket 中断
-                if sock.closed():
+                if sock.closed:
                     break
         except AssertionError:
             await sock.close()
         except KeyError:
             await sock.close()
+        except websockets.exceptions.ConnectionClosedError:
+            pass
 
     async def handshake(
         self, path: str, request_headers: Headers
@@ -55,6 +67,7 @@ class WebsocksServer:
                 username == os.environ['WEBSOCKS_USER'] or
                 password == os.environ['WEBSOCKS_PASS']
         ):
+            logger.warning(f"Authorization Error: {username}:{password}")
             return http.HTTPStatus.NOT_FOUND, {}, b""
 
     async def run_server(self) -> typing.NoReturn:

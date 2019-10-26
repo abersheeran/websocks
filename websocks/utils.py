@@ -30,6 +30,7 @@ class TCPSocket(Socket):
     async def close(self) -> None:
         self.w.close()
 
+    @property
     def closed(self) -> bool:
         return self.w.is_closing()
 
@@ -60,8 +61,9 @@ class WebSocket(Socket):
     async def close(self) -> None:
         await self.sock.close()
 
+    @property
     def closed(self) -> bool:
-        return self.sock.closed()
+        return self.sock.closed
 
 
 async def create_connection(host: str, port: int) -> TCPSocket:
@@ -83,13 +85,13 @@ async def bridge(local: Socket, remote: Socket) -> None:
                     break
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
-        except (
-            ConnectionResetError,
-            ConnectionAbortedError
-        ):
-            pass
         except TypeError:
             await sender.close()
+        except (
+            ConnectionAbortedError,
+            ConnectionResetError
+        ):
+            pass
 
         alive = False
 
@@ -106,3 +108,9 @@ async def bridge(local: Socket, remote: Socket) -> None:
 
     task_0.cancel()
     task_1.cancel()
+
+    while task_0.cancelled:
+        await asyncio.sleep(0.5)
+
+    while task_1.cancelled:
+        await asyncio.sleep(0.5)
