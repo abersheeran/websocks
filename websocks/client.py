@@ -52,8 +52,8 @@ class Pool:
                 await self._create()
 
     async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
-        self._busypool.remove(sock)
         self._freepool.add(sock)
+        self._busypool.remove(sock)
 
     async def _create(self):
         sock = await websockets.connect(
