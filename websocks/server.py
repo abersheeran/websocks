@@ -74,18 +74,15 @@ class WebsocksServer:
         ) as server:
             logger.info(f"Websocks Server serveing on {self.host}:{self.port}")
 
-            alive = True
+        def termina(signo, frame):
+            logger.info(f"Websocks Server has closed.")
+            raise SystemExit(0)
 
-            def termina(signo, frame):
-                logger.info(f"Websocks Server has closed.")
-                nonlocal alive
-                alive = False
+        signal.signal(signal.SIGINT, termina)
+        signal.signal(signal.SIGTERM, termina)
 
-            signal.signal(signal.SIGINT, termina)
-            signal.signal(signal.SIGTERM, termina)
-
-            while alive:
-                await asyncio.sleep(1)
+        while True:
+            await asyncio.sleep(1)
 
     def run(self) -> None:
         loop = asyncio.get_event_loop()

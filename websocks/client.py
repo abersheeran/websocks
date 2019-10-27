@@ -180,17 +180,14 @@ class HTTPServer:
         )
         logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
 
-        alive = True
-
         def termina(signo, frame):
             logger.info(f"Websocks Server has closed.")
-            nonlocal alive
-            alive = False
+            raise SystemExit(0)
 
         signal.signal(signal.SIGINT, termina)
         signal.signal(signal.SIGTERM, termina)
 
-        while alive:
+        while True:
             await asyncio.sleep(1)
 
     def run(self) -> None:
