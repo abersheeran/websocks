@@ -56,12 +56,6 @@ class Pool:
                     if sock.closed:
                         self._freepool.remove(sock)
 
-                sub = self.initsize - len(self._freepool)
-
-                if sub > 0:
-                    await self.init(sub)
-                    continue
-
                 while len(self._freepool) > self.initsize * 2:
                     sock = self._freepool.pop()
                     await sock.close()
@@ -77,12 +71,16 @@ class Pool:
                 sock = self._freepool.pop()
                 if sock.closed:
                     continue
+                if self.initsize > len(self._freepool):
+                    asyncio.create_task(self._create())
                 return sock
             except KeyError:
                 await self._create()
 
     async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
         if isinstance(sock, websockets.WebSocketClientProtocol):
+            if sock.closed():
+                return
             self._freepool.add(sock)
 
     async def _create(self):
