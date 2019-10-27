@@ -4,12 +4,33 @@ import base64
 import typing
 from urllib import request
 
+IPV4_PATTERN = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+
 gfwlist_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     'gfwlist.txt'
 )
 
 cache: set = set()
+
+
+def is_ipv4(host: str) -> bool:
+    """判断 host 是否为 IPV4 地址"""
+    return IPV4_PATTERN.match(host) is not None
+
+
+def is_local_ipv4(host: str) -> bool:
+    if host.startswith("10.") or host.startswith("127."):
+        # A类地址
+        return True
+    if host.startswith("169.254.") or \
+            (host.startswith("172.") and 16 <= int(host.split(".")[1]) <= 31):
+        # B类地址
+        return True
+    if host.startswith("192.168."):
+        # C类地址
+        return True
+    return False
 
 
 class FilterRule:
@@ -73,15 +94,16 @@ gfwlist = FilterRule()
 
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
+    if is_ipv4(host):
+        return not is_local_ipv4(host)
+
     if host in cache:
         return True
+
     result = gfwlist.judge(host)
     if result is True:
         cache.add(host)
-        return True
-    if result is None:
-        return None
-    return False
+    return result
 
 
 def add(host: str) -> None:
