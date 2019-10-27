@@ -137,6 +137,7 @@ class HTTPServer:
                 resp = await remote.recv()
                 assert isinstance(resp, str)
                 if not json.loads(resp)['ALLOW']:
+                    self.pool.release(remote)
                     raise ConnectionRefusedError()
                 if isinstance(e, asyncio.TimeoutError):
                     add(host)
@@ -149,6 +150,7 @@ class HTTPServer:
         except AssertionError:
             await reply(HTTPStatus.INTERNAL_SERVER_ERROR)
             await sock.close()
+            await remote.close()
             logger.warning(f"Proxy Error: Non-standard implementation.")
             return
         except Exception:
