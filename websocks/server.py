@@ -77,7 +77,7 @@ class WebsocksServer:
             port=self.port,
             process_request=self.handshake
         ) as server:
-            logger.info(f"Websocks Server serveing on {self.host}:{self.port}")
+            logger.info(f"Websocks Server serving on {self.host}:{self.port}")
 
             def termina(signo, frame):
                 logger.info(f"Websocks Server has closed.")
