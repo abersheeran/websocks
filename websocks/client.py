@@ -164,6 +164,9 @@ class HTTPServer:
         except (asyncio.TimeoutError, ConnectionRefusedError):
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
             logger.warning(f"Proxy Timeout: {host}:{port}")
+        except websockets.exceptions.ConnectionClosed:
+            await reply(HTTPStatus.BAD_GATEWAY)
+            logger.error(f"Proxy Error: websocket closed")
         except Exception:
             await reply(HTTPStatus.BAD_GATEWAY)
             logger.error(f"Unknown Error: {host}:{port}")
@@ -177,15 +180,17 @@ class HTTPServer:
         )
         logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
 
+        alive = True
+
         def termina(signo, frame):
-            server.close()
-            logger.info(f"HTTP Server has closed.")
-            raise SystemExit(0)
+            logger.info(f"Websocks Server has closed.")
+            nonlocal alive
+            alive = False
 
         signal.signal(signal.SIGINT, termina)
         signal.signal(signal.SIGTERM, termina)
 
-        while True:
+        while alive:
             await asyncio.sleep(1)
 
     def run(self) -> None:

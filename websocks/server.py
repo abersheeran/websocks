@@ -48,11 +48,9 @@ class WebsocksServer:
                 if not remote.closed:
                     await remote.close()
                 await sock.send(json.dumps({"STATUS": "CLOSED"}))
-        except AssertionError:
+        except (AssertionError, KeyError):
             await sock.close()
-        except KeyError:
-            await sock.close()
-        except websockets.exceptions.ConnectionClosedError:
+        except websockets.exceptions.ConnectionClosed:
             pass
 
     async def handshake(
@@ -77,14 +75,17 @@ class WebsocksServer:
         ) as server:
             logger.info(f"Websocks Server serveing on {self.host}:{self.port}")
 
+            alive = True
+
             def termina(signo, frame):
                 logger.info(f"Websocks Server has closed.")
-                raise SystemExit(0)
+                nonlocal alive
+                alive = False
 
             signal.signal(signal.SIGINT, termina)
             signal.signal(signal.SIGTERM, termina)
 
-            while True:
+            while alive:
                 await asyncio.sleep(1)
 
     def run(self) -> None:
