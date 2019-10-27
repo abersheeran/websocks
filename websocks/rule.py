@@ -48,7 +48,7 @@ class FilterRule:
         if line.startswith("!"):
             return None
         if line.startswith("||"):
-            if host.startswith(host[2:]):
+            if host.startswith(line[2:]):
                 return True
         elif line.startswith("|"):
             # 由于是 host 匹配, 所以暂不需要配置此种规则
