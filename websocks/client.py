@@ -176,7 +176,7 @@ class HTTPServer:
         server = await asyncio.start_server(
             self.dispatch, self.host, self.port
         )
-        logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
+        logger.info(f"HTTP Server serving on {server.sockets[0].getsockname()}")
 
         def termina(signo, frame):
             logger.info(f"Websocks Server has closed.")
