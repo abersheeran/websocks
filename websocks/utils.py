@@ -152,14 +152,16 @@ async def bridge(local: Socket, remote: Socket) -> None:
             if str(e) == "websocks closed.":
                 return
 
-            try:
-                if isinstance(sender, WebSocket):
-                    _websocks = sender
-                elif isinstance(receiver, WebSocket):
-                    _websocks = receiver
-                await _websocks.send(json.dumps({"STATUS": "CLOSED"}))
-            except ConnectionResetError:
-                pass
+        try:
+            if isinstance(sender, WebSocket):
+                _websocks = sender
+            elif isinstance(receiver, WebSocket):
+                _websocks = receiver
+            else:
+                return
+            await _websocks.send(json.dumps({"STATUS": "CLOSED"}))
+        except ConnectionResetError:
+            pass
 
     await onlyfirst(
         forward(local, remote),

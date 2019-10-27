@@ -165,6 +165,8 @@ class HTTPServer:
         except websockets.exceptions.ConnectionClosed:
             await reply(HTTPStatus.BAD_GATEWAY)
             logger.error(f"Proxy Error: websocket closed")
+        except asyncio.CancelledError as e:
+            raise e  # keep CaneclledError
         except Exception:
             await reply(HTTPStatus.BAD_GATEWAY)
             logger.error(f"Unknown Error: {host}:{port}")
