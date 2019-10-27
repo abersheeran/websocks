@@ -147,7 +147,7 @@ class HTTPServer:
                     remote_type = DIRECT
             else:
                 remote = await create_connection(host, port)
-                remote_type = PROXY
+                remote_type = DIRECT
             end_time = time.time()
 
             logger.info(f"{end_time - start_time:02.3f} {remote_type}: {host}:{port}")
