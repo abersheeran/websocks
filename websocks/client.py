@@ -79,7 +79,7 @@ class Pool:
 
     async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
         if isinstance(sock, websockets.WebSocketClientProtocol):
-            if sock.closed():
+            if sock.closed:
                 return
             self._freepool.add(sock)
 
