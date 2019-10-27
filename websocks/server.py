@@ -47,9 +47,7 @@ class WebsocksServer:
                 # 清理连接
                 if not remote.closed:
                     await remote.close()
-                # websocket 中断
-                if sock.closed:
-                    break
+                await sock.send(json.dumps({"STATUS": "CLOSED"}))
         except AssertionError:
             await sock.close()
         except KeyError:

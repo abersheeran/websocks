@@ -11,8 +11,18 @@ from http import HTTPStatus
 
 import websockets
 
-from .utils import TCPSocket, WebSocket, bridge, create_connection
-from .rule import judge, add
+from .utils import (
+    TCPSocket,
+    WebSocket,
+    bridge,
+    onlyfirst,
+    create_connection,
+    connect_server
+)
+from .rule import judge
+
+DIRECT = "Direct"
+PROXY = "Proxy"
 
 logger: logging.Logger = logging.getLogger("websocks")
 
@@ -21,10 +31,6 @@ def get_credentials() -> str:
     username = os.environ['WEBSOCKS_USER']
     password = os.environ['WEBSOCKS_PASS']
     return "Basic " + base64.b64encode(f"{username}:{password}".encode("utf8")).decode("utf8")
-
-
-class DirectException(Exception):
-    pass
 
 
 class Pool:
@@ -76,7 +82,8 @@ class Pool:
                 await self._create()
 
     async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
-        self._freepool.add(sock)
+        if isinstance(sock, websockets.WebSocketClientProtocol):
+            self._freepool.add(sock)
 
     async def _create(self):
         sock = await websockets.connect(
@@ -121,54 +128,48 @@ class HTTPServer:
         host, port = hostport.split(":")
 
         try:
-            try:
-                start_time = time.time()
-                r = judge(host)
-                if r:
-                    raise DirectException(f"{host}")
-                if r is None:
-                    remote = await asyncio.wait_for(create_connection(host, port), timeout=2)
-                else:
-                    remote = await create_connection(host, port)
-                logger.info(f"{time.time() - start_time:02.3f} Direct: {host}:{port}")
-            except (asyncio.TimeoutError, DirectException) as e:
+            start_time = time.time()
+            need_proxy = judge(host)
+            if need_proxy:
                 remote = await self.pool.acquire()
-                await remote.send(json.dumps({"HOST": host, "PORT": port}))
-                resp = await remote.recv()
-                assert isinstance(resp, str)
-                if not json.loads(resp)['ALLOW']:
-                    self.pool.release(remote)
-                    raise ConnectionRefusedError()
-                if isinstance(e, asyncio.TimeoutError):
-                    add(host)
-                logger.info(f"{time.time() - start_time:02.3f} Proxy: {host}:{port}")
+                remote = await connect_server(remote, host, port)
+                remote_type = PROXY
+            elif need_proxy is None:
+                remote = await self.pool.acquire()
+                remote = await onlyfirst(
+                    connect_server(remote, host, port),
+                    create_connection(host, port)
+                )
+                if isinstance(remote, WebSocket):
+                    remote_type = PROXY
+                else:
+                    await self.pool.release(remote)
+                    remote_type = DIRECT
+            else:
+                remote = await create_connection(host, port)
+                remote_type = PROXY
+            end_time = time.time()
+
+            logger.info(f"{end_time - start_time:02.3f} {remote_type}: {host}:{port}")
+
+            await reply(HTTPStatus.OK)
+            # forward data
+            await bridge(sock, remote)
+
+            if remote_type == PROXY:
+                await self.pool.release(remote.sock)
+            elif remote_type == DIRECT:
+                await remote.close()
+
         except (asyncio.TimeoutError, ConnectionRefusedError):
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
-            await sock.close()
             logger.warning(f"Proxy Timeout: {host}:{port}")
-            return
-        except AssertionError:
-            await reply(HTTPStatus.INTERNAL_SERVER_ERROR)
-            await sock.close()
-            await remote.close()
-            logger.warning(f"Proxy Error: Non-standard implementation.")
-            return
         except Exception:
             await reply(HTTPStatus.BAD_GATEWAY)
-            await sock.close()
             logger.error(f"Unknown Error: {host}:{port}")
             traceback.print_exc()
-            return
-        else:
-            await reply(HTTPStatus.OK)
-            if isinstance(remote, websockets.WebSocketCommonProtocol):
-                await bridge(sock, WebSocket(remote))
-                await self.pool.release(remote)
-            else:
-                await bridge(sock, remote)
-                await remote.close()
-            if not sock.closed:
-                await sock.close()
+
+        await sock.close()
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(
