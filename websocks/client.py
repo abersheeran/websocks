@@ -38,10 +38,7 @@ class Pool:
     def __init__(self, initsize: int = 7) -> None:
         self.initsize = initsize
         self._freepool = set()
-        asyncio.run_coroutine_threadsafe(
-            self.init(initsize),
-            asyncio.get_event_loop()
-        )
+        asyncio.create_task(self.init(initsize))
         self.timed_task()
 
     async def init(self, size: int) -> None:
@@ -52,6 +49,7 @@ class Pool:
         async def _timed_task() -> None:
             while True:
                 await asyncio.sleep(7)
+
                 for sock in self._freepool:
                     if sock.closed:
                         self._freepool.remove(sock)
@@ -60,10 +58,7 @@ class Pool:
                     sock = self._freepool.pop()
                     await sock.close()
 
-        asyncio.run_coroutine_threadsafe(
-            _timed_task(),
-            asyncio.get_event_loop()
-        )
+        asyncio.create_task(_timed_task())
 
     async def acquire(self) -> websockets.WebSocketClientProtocol:
         while True:
