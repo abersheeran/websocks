@@ -51,7 +51,7 @@ class Pool:
             while True:
                 await asyncio.sleep(7)
 
-                for sock in self._freepool:
+                for sock in tuple(self._freepool):
                     if sock.closed:
                         self._freepool.remove(sock)
 
