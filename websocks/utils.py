@@ -24,8 +24,8 @@ class TCPSocket(Socket):
         self.r = reader
         self.w = writer
 
-    async def recv(self) -> bytes:
-        data = await self.r.read(4096)
+    async def recv(self, num: int = 4096) -> bytes:
+        data = await self.r.read(num)
         logger.debug(f"<<< {data}")
         return data
 
@@ -48,7 +48,7 @@ class WebSocket(Socket):
     def __init__(self, sock: WebSocketCommonProtocol):
         self.sock = sock
 
-    async def recv(self) -> bytes:
+    async def recv(self, num: int = -1) -> bytes:
         try:
             data = await self.sock.recv()
         except websockets.exceptions.ConnectionClosed:

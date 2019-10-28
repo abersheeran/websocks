@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 class Socket(metaclass=ABCMeta):
 
     @abstractmethod
-    async def recv(self) -> bytes:
+    async def recv(self, num: int) -> bytes:
         raise NotImplementedError()
 
     @abstractmethod
