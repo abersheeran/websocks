@@ -148,6 +148,13 @@ def onlyfirst(*coros, loop=None):
 
 async def bridge(local: Socket, remote: Socket) -> None:
 
+    if isinstance(local, WebSocket):
+        _websocks = local
+    elif isinstance(remote, WebSocket):
+        _websocks = remote
+    else:
+        _websocks = None
+
     async def forward(sender: Socket, receiver: Socket) -> None:
         try:
             while True:
@@ -156,33 +163,23 @@ async def bridge(local: Socket, remote: Socket) -> None:
                     break
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
+        except WebsocksClosed:  # WebSocket
+            await sender.reset()
         except (
             ConnectionAbortedError,
             ConnectionResetError
         ):
-            pass
+            if _websocks is None or _websocks.closed:
+                return
 
-    if isinstance(local, WebSocket):
-        _websocks = local
-    elif isinstance(remote, WebSocket):
-        _websocks = remote
-    else:
-        _websocks = None
+            await _websocks.reset()
+            try:
+                while True:
+                    await _websocks.recv()
+            except WebsocksClosed:
+                pass
 
-    try:
-        await onlyfirst(
-            forward(local, remote),
-            forward(remote, local)
-        )
-    except WebsocksClosed:
-        await _websocks.reset()
-    else:
-        if _websocks is None or _websocks.closed:
-            return
-
-        await _websocks.reset()
-        try:
-            while True:
-                await _websocks.recv()
-        except WebsocksClosed:
-            pass
+    await onlyfirst(
+        forward(local, remote),
+        forward(remote, local)
+    )
