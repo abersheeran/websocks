@@ -168,6 +168,9 @@ async def bridge(local: Socket, remote: Socket) -> None:
             else:
                 return
 
+            if _websocks.closed:
+                return
+
             await _websocks.reset()
             try:
                 while True:
