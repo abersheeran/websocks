@@ -47,6 +47,7 @@ class WebSocket(Socket):
 
     def __init__(self, sock: WebSocketCommonProtocol):
         self.sock = sock
+        self.status = 'OPEN'
 
     async def recv(self, num: int = -1) -> bytes:
         try:
@@ -57,6 +58,7 @@ class WebSocket(Socket):
         if isinstance(data, str):  # websocks
             _data = json.loads(data)
             if _data.get("STATUS") == "CLOSED":
+                self.status = 'CLOSED'
                 raise WebsocksClosed('websocks closed.')
         return data
 
@@ -169,17 +171,22 @@ async def bridge(local: Socket, remote: Socket) -> None:
             ConnectionAbortedError,
             ConnectionResetError
         ):
-            if _websocks is None or _websocks.closed:
-                return
-
-            await _websocks.reset()
-            try:
-                while True:
-                    await _websocks.recv()
-            except WebsocksClosed:
-                pass
+            pass
 
     await onlyfirst(
         forward(local, remote),
         forward(remote, local)
     )
+
+    if _websocks is None or _websocks.closed:
+        return
+
+    if _websocks.status == "CLOSED":
+        return
+
+    await _websocks.reset()
+    try:
+        while True:
+            await _websocks.recv()
+    except WebsocksClosed:
+        pass
