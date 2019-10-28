@@ -235,12 +235,8 @@ class Socks5Server:
         finally:
             await sock.close()
 
-    def reply(
-        self,
-        REP: int,
-        IP: str = "127.0.0.1",
-        port: int = 1080
-    ) -> bytes:
+    @staticmethod
+    def reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
         """构造响应值"""
         VER, RSV = b'\x05', b'\x00'
         try:
