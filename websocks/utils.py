@@ -8,7 +8,11 @@ import websockets
 from websockets import WebSocketClientProtocol, WebSocketCommonProtocol
 
 from .types import Socket
-from .exceptions import WebsocksImplementationError
+from .exceptions import (
+    WebsocksImplementationError,
+    WebsocksClosed,
+    WebsocksRefused
+)
 
 
 logger: logging.Logger = logging.getLogger("websocks")
@@ -53,7 +57,7 @@ class WebSocket(Socket):
         if isinstance(data, str):  # websocks
             _data = json.loads(data)
             if _data.get("STATUS") == "CLOSED":
-                raise ConnectionResetError('websocks closed.')
+                raise WebsocksClosed('websocks closed.')
         return data
 
     async def send(self, data: bytes) -> int:
@@ -94,7 +98,7 @@ async def connect_server(
     try:
         assert isinstance(resp, str), 'must be str'
         if not json.loads(resp)['ALLOW']:
-            raise ConnectionRefusedError(
+            raise WebsocksRefused(
                 f"websocks server can't connect {host}:{port}"
             )
     except (AssertionError, KeyError):
@@ -151,20 +155,25 @@ async def bridge(local: Socket, remote: Socket) -> None:
                     break
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
+        except WebsocksClosed:
+            await sender.reset()
         except (
             ConnectionAbortedError,
             ConnectionResetError
-        ) as e:
-            if str(e) == "websocks closed.":
+        ):
+            if isinstance(sender, WebSocket):
+                _websocks = sender
+            elif isinstance(receiver, WebSocket):
+                _websocks = receiver
+            else:
                 return
 
-        if isinstance(sender, WebSocket):
-            _websocks = sender
-        elif isinstance(receiver, WebSocket):
-            _websocks = receiver
-        else:
-            return
-        await _websocks.reset()
+            await _websocks.reset()
+            try:
+                while True:
+                    await _websocks.recv()
+            except WebsocksClosed:
+                pass
 
     await onlyfirst(
         forward(local, remote),

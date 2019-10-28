@@ -19,6 +19,8 @@ from .utils import (
     create_connection,
     connect_server
 )
+from .exceptions import WebsocksRefused
+
 from . import rule
 
 DIRECT = "Direct"
@@ -38,7 +40,9 @@ class Pool:
     def __init__(self, initsize: int = 7) -> None:
         self.initsize = initsize
         self._freepool = set()
-        asyncio.create_task(self.init(initsize))
+        asyncio.get_event_loop().create_task(
+            self.init(initsize)
+        )
         self.timed_task()
 
     async def init(self, size: int) -> None:
@@ -58,7 +62,7 @@ class Pool:
                     sock = self._freepool.pop()
                     await sock.close()
 
-        asyncio.create_task(_timed_task())
+        asyncio.get_event_loop().create_task(_timed_task())
 
     async def acquire(self) -> websockets.WebSocketClientProtocol:
         while True:
@@ -154,10 +158,12 @@ class HTTPServer:
                 await self.pool.release(remote.sock)
             elif remote_type == DIRECT:
                 await remote.close()
-
+        except WebsocksRefused:
+            await reply(HTTPStatus.BAD_GATEWAY)
+            logger.error(f"Proxy Refused: {host}:{port}")
         except (asyncio.TimeoutError, ConnectionRefusedError):
             await reply(HTTPStatus.GATEWAY_TIMEOUT)
-            logger.warning(f"Proxy Timeout: {host}:{port}")
+            logger.warning(f"Connect Timeout: {host}:{port}")
         except websockets.exceptions.ConnectionClosed:
             await reply(HTTPStatus.BAD_GATEWAY)
             logger.error(f"Proxy Error: websocket closed")

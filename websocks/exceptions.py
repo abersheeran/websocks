@@ -4,3 +4,11 @@ class WebsocksError(Exception):
 
 class WebsocksImplementationError(WebsocksError):
     pass
+
+
+class WebsocksClosed(WebsocksError):
+    pass
+
+
+class WebsocksRefused(WebsocksError):
+    pass
