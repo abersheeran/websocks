@@ -102,6 +102,7 @@ async def connect_server(
                 f"websocks server can't connect {host}:{port}"
             )
     except (AssertionError, KeyError):
+        print(resp)
         raise WebsocksImplementationError()
     return WebSocket(sock)
 
@@ -155,30 +156,33 @@ async def bridge(local: Socket, remote: Socket) -> None:
                     break
                 await receiver.send(data)
                 logger.debug(f">=< {data}")
-        except WebsocksClosed:
-            await sender.reset()
         except (
             ConnectionAbortedError,
             ConnectionResetError
         ):
-            if isinstance(sender, WebSocket):
-                _websocks = sender
-            elif isinstance(receiver, WebSocket):
-                _websocks = receiver
-            else:
-                return
+            pass
 
-            if _websocks.closed:
-                return
+    if isinstance(local, WebSocket):
+        _websocks = local
+    elif isinstance(remote, WebSocket):
+        _websocks = remote
+    else:
+        _websocks = None
 
-            await _websocks.reset()
-            try:
-                while True:
-                    await _websocks.recv()
-            except WebsocksClosed:
-                pass
+    try:
+        await onlyfirst(
+            forward(local, remote),
+            forward(remote, local)
+        )
+    except WebsocksClosed:
+        await _websocks.reset()
+    else:
+        if _websocks is None or _websocks.closed:
+            return
 
-    await onlyfirst(
-        forward(local, remote),
-        forward(remote, local)
-    )
+        await _websocks.reset()
+        try:
+            while True:
+                await _websocks.recv()
+        except WebsocksClosed:
+            pass
