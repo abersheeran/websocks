@@ -71,6 +71,12 @@ class WebSocket(Socket):
     def closed(self) -> bool:
         return self.sock.closed
 
+    async def reset(self) -> None:
+        try:
+            await self.sock.send(json.dumps({"STATUS": "CLOSED"}))
+        except websockets.exceptions.ConnectionClosed:
+            pass
+
 
 async def create_connection(host: str, port: int) -> TCPSocket:
     """create a TCP socket"""
@@ -152,16 +158,13 @@ async def bridge(local: Socket, remote: Socket) -> None:
             if str(e) == "websocks closed.":
                 return
 
-        try:
-            if isinstance(sender, WebSocket):
-                _websocks = sender
-            elif isinstance(receiver, WebSocket):
-                _websocks = receiver
-            else:
-                return
-            await _websocks.send(json.dumps({"STATUS": "CLOSED"}))
-        except ConnectionResetError:
-            pass
+        if isinstance(sender, WebSocket):
+            _websocks = sender
+        elif isinstance(receiver, WebSocket):
+            _websocks = receiver
+        else:
+            return
+        await _websocks.reset()
 
     await onlyfirst(
         forward(local, remote),

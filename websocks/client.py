@@ -19,7 +19,7 @@ from .utils import (
     create_connection,
     connect_server
 )
-from .rule import judge
+from . import rule
 
 DIRECT = "Direct"
 PROXY = "Proxy"
@@ -127,22 +127,23 @@ class HTTPServer:
 
         try:
             start_time = time.time()
-            need_proxy = judge(host)
+            need_proxy = rule.judge(host)
             if need_proxy:
-                remote = await self.pool.acquire()
-                remote = await connect_server(remote, host, port)
+                _remote = await self.pool.acquire()
+                remote = await connect_server(_remote, host, port)
                 remote_type = PROXY
             elif need_proxy is None:
-                remote = await self.pool.acquire()
-                remote = await onlyfirst(
-                    connect_server(remote, host, port),
-                    create_connection(host, port)
-                )
-                if isinstance(remote, WebSocket):
-                    remote_type = PROXY
-                else:
-                    await self.pool.release(remote)
+                try:
+                    remote = await asyncio.wait_for(
+                        create_connection(host, port),
+                        timeout=2.3
+                    )
                     remote_type = DIRECT
+                except asyncio.TimeoutError:
+                    _remote = await self.pool.acquire()
+                    remote = await connect_server(_remote, host, port)
+                    remote_type = PROXY
+                    rule.add(host)
             else:
                 remote = await create_connection(host, port)
                 remote_type = DIRECT
