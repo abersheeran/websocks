@@ -67,8 +67,26 @@ services:
     restart: always
 ```
 
+## 代理与否
+
+由于 GFWList 是不断变化的，并且对于不同地区的网络屏蔽力度不同。所以 websocks 的代理策略由两部分组成
+
+1. 名单: 使用 [GFWlist](https://github.com/gfwlist/gfwlist) 作为黑名单。自身编写了一个白名单 [whitelist](https://github.com/abersheeran/websocks/blob/master/websocks/whitelist.txt)。欢迎对白名单做出贡献
+
+2. 自动连接: 由上所知，不同的网络环境下，需要加速的 Host 是不同的。所以当一个 Host 不在名单中时，会首先使用本地网络环境连接，超时后则转为使用代理连接。并且会将 Host 记录在内存里，下次访问直接使用代理。重新启动 websocks 后，此记录失效。
+
 ## 将要做的
+
+客户端：
 
 - [ ] 更多可配置化
 
-- [ ] 支持多用户名. 支持流量统计.
+- [ ] 支持流量、网速、延迟等统计数据
+
+- [ ] web 端界面用于管理客户端与服务器
+
+服务端：
+
+- [ ] 支持多用户. 支持流量统计.
+
+- [ ] 提供 websocket 接口用于管理
