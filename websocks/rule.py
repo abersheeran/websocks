@@ -10,6 +10,10 @@ gfwlist_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     'gfwlist.txt'
 )
+whitelist_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'whitelist.txt'
+)
 
 cache: set = set()
 
@@ -37,20 +41,58 @@ class FilterRule:
 
     def __init__(self) -> None:
         self.gfwlist_file = open(gfwlist_path)
+        self.whitelist_file = open(whitelist_path)
 
     @staticmethod
-    def download(url: str = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt") -> None:
+    def download_gfwlist(url: str = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt") -> None:
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(gfwlist_path, 'wb+') as file:
             base64.decode(resp, file)
 
+    @staticmethod
+    def download_whitelist(url: str = None) -> None:
+        if url is None:
+            print("whitelist url is None, nothing to do.", flush=True)
+            return
+        req = request.Request(url, method="GET")
+        resp = request.urlopen(req)
+        with open(whitelist_path, "wb+") as file:
+            file.write(resp.read())
+
     def judge(self, host: str) -> typing.Optional[bool]:
         """
         匹配例外则返回 False, 匹配成功则返回 True.
         不在规则内返回 None.
+        """
+        result = None
+        result = self._judge_whitelist(host)
+        if result is not None:
+            return result
+        result = self._judge_gfwlist(host)
+        if result is not None:
+            return result
 
-        匹配一次大约 0.1 秒
+    def _judge_whitelist(self, host: str) -> typing.Optional[bool]:
+        """
+        从白名单中匹配
+        """
+        self.whitelist_file.seek(0, 0)
+        while True:
+            line = self.whitelist_file.readline()
+            if not line:
+                return
+            line = line.strip()
+            if not line:
+                continue
+            result = self._judge(line, host)
+            if result is not None:
+                return result
+        self.whitelist_file.seek(0, 0)
+
+    def _judge_gfwlist(self, host: str) -> typing.Optional[bool]:
+        """
+        从 GFWList 中匹配
         """
         self.gfwlist_file.seek(0, 0)
         while True:
@@ -89,7 +131,7 @@ class FilterRule:
                 return True
 
 
-gfwlist = FilterRule()
+hostlist = FilterRule()
 
 
 def judge(host: str) -> typing.Optional[bool]:
@@ -100,7 +142,7 @@ def judge(host: str) -> typing.Optional[bool]:
     if host in cache:
         return True
 
-    result = gfwlist.judge(host)
+    result = hostlist.judge(host)
     if result is True:
         cache.add(host)
     return result
@@ -112,4 +154,5 @@ def add(host: str) -> None:
 
 
 if __name__ == "__main__":
-    gfwlist.download()
+    hostlist.download_gfwlist()
+    hostlist.download_whitelist()
