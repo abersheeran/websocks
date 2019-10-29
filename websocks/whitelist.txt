@@ -1,3 +1,5 @@
 @@.bilibili.com
+@@.hdslb.com
+@@.acgvideo.com
 @@.qq.com
 @@.cnblog.com
