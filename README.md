@@ -36,6 +36,8 @@ WEBSOCKS_SERVER=服务器地址
 
 如果你的PC/服务器上没有安装 Python3.6+，并且你并不想安装，那么可以使用 docker 去启动 websocks。
 
+本仓库有 Docker 的自动构建，点此查看：[hub.docker](https://cloud.docker.com/u/abersheeran/repository/docker/abersheeran/websocks)
+
 以下分别为服务端和客户端的 `docker-compose.yml` 样例。
 
 ```python
