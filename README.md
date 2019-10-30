@@ -1,6 +1,6 @@
 # websocks
 
-通过 websocket 转发本地 http 代理服务器接收到的 TCP 数据。
+通过 websocket 转发本地 socks5 代理服务器接收到的 TCP 数据。
 
 ## 协议设计
 
