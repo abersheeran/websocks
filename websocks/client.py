@@ -270,8 +270,12 @@ class Socks5Server:
                     )
                     remote_type = DIRECT
                 except asyncio.TimeoutError:
-                    _remote = await self.pool.acquire()
-                    remote = await connect_server(_remote, addr, port)
+                    try:
+                        _remote = await self.pool.acquire()
+                        remote = await connect_server(_remote, addr, port)
+                    except websockets.exceptions.ConnectionClosed:
+                        _remote = await self.pool.acquire()
+                        remote = await connect_server(_remote, addr, port)
                     remote_type = PROXY
                     rule.add(addr)
             else:
