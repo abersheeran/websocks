@@ -36,7 +36,7 @@ WEBSOCKS_SERVER=服务器地址
 
 如果你的PC/服务器上没有安装 Python3.6+，并且你并不想安装，那么可以使用 docker 去启动 websocks。
 
-本仓库有 Docker 的自动构建，点此查看：[hub.docker](https://cloud.docker.com/u/abersheeran/repository/docker/abersheeran/websocks)
+本仓库有 docker 的自动构建，点此查看：[hub.docker](https://cloud.docker.com/u/abersheeran/repository/docker/abersheeran/websocks)
 
 以下分别为服务端和客户端的 `docker-compose.yml` 样例。
 
@@ -68,6 +68,10 @@ services:
       - "3128:3128"
     restart: always
 ```
+
+如果你不懂 docker，也没关系，你只需要安装好 docker 与 docker-compose。然后在任意路径创建 `docker-compose.yml` 文件，写入如上内容并将一些需要你自己填写的部分替换。最后在同一目录下执行 `docker-compose up -d`，服务将能启动。
+
+需要更新时，使用 `docker-compose pull` + `docker-compose up -d` 两条命令即可。 
 
 ## 代理与否
 
