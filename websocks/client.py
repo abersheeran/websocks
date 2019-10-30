@@ -6,6 +6,7 @@ import asyncio
 import typing
 import logging
 import traceback
+import socket
 from socket import inet_aton, inet_ntoa, inet_ntop, inet_pton, AF_INET6
 
 import websockets
@@ -269,7 +270,7 @@ class Socks5Server:
                         timeout=2.3
                     )
                     remote_type = DIRECT
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, socket.gaierror):
                     try:
                         _remote = await self.pool.acquire()
                         remote = await connect_server(_remote, addr, port)
