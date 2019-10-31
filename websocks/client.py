@@ -290,6 +290,9 @@ class Socks5Server:
         except WebsocksRefused:
             await sock.send(self.reply(CONNECTION_REFUSED))
             logger.error(f"Proxy Refused: {addr}:{port}")
+        except socket.gaierror:
+            await sock.send(self.reply(CONNECTION_REFUSED))
+            logger.error(f"Network error: Can't connect to {addr}:{port}")
         except Exception:
             await sock.send(self.reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
             logger.error(f"Unknown Error: ")
