@@ -12,4 +12,4 @@ def test_ipv4():
 
 def test_domain():
     assert judge("google.com")
-    assert judge("")
+    assert not judge("bilibili.com")
