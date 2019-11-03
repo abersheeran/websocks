@@ -86,7 +86,7 @@ class UploadCommand(Command):
 
 # Where the magic happens:
 setup(
-    name="index.py",
+    name=NAME,
     version=VERSION,
     description=DESCRIPTION,
     long_description=long_description,
@@ -97,7 +97,7 @@ setup(
     url=URL,
     packages=find_packages(include=["websocks"], exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
     entry_points={
-        'console_scripts': ['websocks=index.commands:main'],
+        'console_scripts': ['websocks=websocks.commands:main'],
     },
     install_requires=REQUIRED,
     extras_require=EXTRAS,
