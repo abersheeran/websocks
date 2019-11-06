@@ -63,6 +63,7 @@ class FilterRule:
         if url is None:
             print("gfwlist url is None, nothing to do.", flush=True)
             return
+        print(f"Downloading gfwlist from {url}", flush=True)
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(gfwlist_path, 'wb+') as file:
@@ -73,6 +74,7 @@ class FilterRule:
         if url is None:
             print("whitelist url is None, nothing to do.", flush=True)
             return
+        print(f"Downloading whitelist from {url}", flush=True)
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(whitelist_path, "wb+") as file:
