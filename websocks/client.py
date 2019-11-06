@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import base64
 import signal
@@ -24,18 +25,19 @@ from . import rule
 DIRECT = "Direct"
 PROXY = "Proxy"
 
+SERVER_URL = re.compile(r"(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>.*?)")
+
 logger: logging.Logger = logging.getLogger("websocks")
-
-
-def get_credentials() -> str:
-    username = os.environ['WEBSOCKS_USER']
-    password = os.environ['WEBSOCKS_PASS']
-    return "Basic " + base64.b64encode(f"{username}:{password}".encode("utf8")).decode("utf8")
 
 
 class Pool:
 
-    def __init__(self, initsize: int = 7) -> None:
+    def __init__(self, server: str, initsize: int = 7) -> None:
+        _proxy = SERVER_URL.match(server)
+        self.username = _proxy.group('username')
+        self.password = _proxy.group('password')
+        self.server = "wss://" + _proxy.group('host') + ":" + _proxy.group('port')
+
         self.initsize = initsize
         self._freepool = set()
         asyncio.get_event_loop().create_task(
@@ -80,11 +82,14 @@ class Pool:
                 return
             self._freepool.add(sock)
 
+    def get_credentials(self) -> str:
+        return "Basic " + base64.b64encode(f"{self.username}:{self.password}".encode("utf8")).decode("utf8")
+
     async def _create(self):
         sock = await websockets.connect(
-            os.environ['WEBSOCKS_SERVER'],
+            self.server,
             extra_headers={
-                "Proxy-Authorization": get_credentials()
+                "Proxy-Authorization": self.get_credentials()
             }
         )
         self._freepool.add(sock)
@@ -176,10 +181,19 @@ class Socks5Server:
 
     Authentication = NoAuthentication
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 3128) -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 3128,
+        policy: str = "AUTO",
+        server: str = None
+    ) -> None:
+        assert server is not None
+
         self.host = host
         self.port = port
-        self.pool = Pool()
+        self.policy = policy
+        self.pool = Pool(server)
 
     async def dispatch(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         sock = TCPSocket(reader, writer)
@@ -259,11 +273,11 @@ class Socks5Server:
         try:
             start_time = time.time()
             need_proxy = rule.judge(addr)
-            if need_proxy:
+            if need_proxy or self.policy == "PROXY":
                 _remote = await self.pool.acquire()
                 remote = await connect_server(_remote, addr, port)
                 remote_type = PROXY
-            elif need_proxy is None:
+            elif need_proxy is None and self.policy == "AUTO":
                 try:
                     remote = await asyncio.wait_for(
                         create_connection(addr, port),

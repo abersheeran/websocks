@@ -10,23 +10,13 @@
 
 websocks 分两个部分： `client` 与 `server`。
 
-首先需要使用 `pipenv install` 安装好 websocks 所需的依赖。
-
-在项目根目录创建 `.env` 文件，在其中配置环境变量：
-
-```.env
-WEBSOCKS_USER=用户名
-WEBSOCKS_PASS=密码
-WEBSOCKS_SERVER=服务器地址
-```
-
-其中，服务器地址应为 `wss://your-domain` 形式。
+首先需要使用 `pip install websocks` 安装。
 
 然后可以使用启动命令：
 
-- 启动服务端使用： `pipenv run python -m websocks.server`
+- 启动服务端使用： `websocks server -U USERNAME:PASSWORD 127.0.0.1 8765`
 
-- 启动客户端使用： `pipenv run python -m websocks.client`
+- 启动客户端使用： `websocks client -s USERNAME:PASSWORD@HOST:PORT 0.0.0.0 3128`
 
 在启动服务端后，应使用 nginx 等反向代理服务器进行反向代理，并配置 SSL 证书（可参考[Wiki](https://github.com/abersheeran/websocks/wiki/Nginx-%E9%85%8D%E7%BD%AE-WebSocket)）。如果能够配置 CDN 代理 websocket 连接，那是最好的。
 
@@ -45,10 +35,7 @@ version: '3.3'
 services:
   websocks:
     image: abersheeran/websocks
-    command: python3 -m websocks.server
-    environment:
-      WEBSOCKS_USER: your username
-      WEBSOCKS_PASS: your password
+    command: websocks server -U USERNAME:PASSWORD 0.0.0.0 8765
     ports:
       - "8765:8765"
     restart: always
@@ -59,11 +46,7 @@ version: '3.3'
 services:
   websocks:
     image: abersheeran/websocks
-    command: python3 -m websocks.client
-    environment:
-      WEBSOCKS_USER: your username
-      WEBSOCKS_PASS: your password
-      WEBSOCKS_SERVER: wss://your-server
+    command: websocks client -s USERNAME:PASSWORD@HOST:PORT 0.0.0.0 3128
     ports:
       - "3128:3128"
     restart: always
@@ -71,7 +54,7 @@ services:
 
 如果你不懂 docker，也没关系，你只需要安装好 docker 与 docker-compose。然后在任意路径创建 `docker-compose.yml` 文件，写入如上内容并将一些需要你自己填写的部分替换。最后在同一目录下执行 `docker-compose up -d`，服务将能启动。
 
-需要更新时，使用 `docker-compose pull` + `docker-compose up -d` 两条命令即可。 
+需要更新时，使用 `docker-compose pull` + `docker-compose up -d` 两条命令即可。
 
 ## 代理与否
 
@@ -81,11 +64,11 @@ services:
 
 2. 自动连接: 由上所知，不同的网络环境下，需要加速的 Host 是不同的。所以当一个 Host 不在名单中时，会首先使用本地网络环境连接，超时后则转为使用代理连接。并且会将 Host 记录在内存里，下次访问直接使用代理。重新启动 websocks 后，此记录失效。
 
+但如果你有全部代理的需求，可以在启动客户端时指定选项`-p PROXY`。
+
 ## 将要做的
 
 客户端：
-
-- [ ] 更多可配置化
 
 - [ ] 支持流量、网速、延迟等统计数据
 

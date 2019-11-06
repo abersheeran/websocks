@@ -1,17 +1,28 @@
 import os
 import re
+import sys
 import base64
 import typing
 from urllib import request
 
 IPV4_PATTERN = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
 
+if os.name == "posix":
+    root = "~"
+else:
+    root = os.environ.get("USERPROFILE", "C:")
+
+root = os.path.join(root, '.websocks')
+
+if not os.path.exists(root):
+    os.makedirs(root)
+
 gfwlist_path = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
+    root,
     'gfwlist.txt'
 )
 whitelist_path = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
+    root,
     'whitelist.txt'
 )
 
@@ -45,13 +56,16 @@ class FilterRule:
 
     @staticmethod
     def download_gfwlist(url: str = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt") -> None:
+        if url is None:
+            print("gfwlist url is None, nothing to do.", flush=True)
+            return
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(gfwlist_path, 'wb+') as file:
             base64.decode(resp, file)
 
     @staticmethod
-    def download_whitelist(url: str = None) -> None:
+    def download_whitelist(url: str = "https://raw.githubusercontent.com/abersheeran/websocks/master/websocks/whitelist.txt") -> None:
         if url is None:
             print("whitelist url is None, nothing to do.", flush=True)
             return

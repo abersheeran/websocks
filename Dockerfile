@@ -7,10 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE 1
 
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
+COPY . /app
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev make \
-    && pip3 install -r requirements.txt \
+    && python3 setup.py install \
     && apk del .build-deps
-
-COPY ./websocks/ /app/websocks/

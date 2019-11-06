@@ -1,4 +1,3 @@
-import os
 import json
 import http
 import signal
@@ -12,14 +11,16 @@ from websockets import WebSocketServerProtocol
 from websockets.server import HTTPResponse
 from websockets.http import Headers
 
-from .utils import create_connection, TCPSocket, WebSocket, bridge
+from .utils import create_connection, WebSocket, bridge
 
 logger: logging.Logger = logging.getLogger("websocks")
 
 
 class WebsocksServer:
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8765):
+    def __init__(self, username: str, password: str, *, host: str = "0.0.0.0", port: int = 8765):
+        self.username = username
+        self.password = password
         self.host = host
         self.port = port
 
@@ -59,8 +60,8 @@ class WebsocksServer:
         _type, _credentials = request_headers.get('Proxy-Authorization').split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
         if not (
-                username == os.environ['WEBSOCKS_USER'] or
-                password == os.environ['WEBSOCKS_PASS']
+                username == self.username or
+                password == self.password
         ):
             logger.warning(f"Authorization Error: {username}:{password}")
             return http.HTTPStatus.NOT_FOUND, {}, b""

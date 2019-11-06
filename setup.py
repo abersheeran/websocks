@@ -95,7 +95,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(include=["websocks"], exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
+    packages=find_packages(include=["websocks"]),
     entry_points={
         'console_scripts': ['websocks=websocks.commands:main'],
     },
