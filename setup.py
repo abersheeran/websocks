@@ -7,7 +7,6 @@
 import io
 import os
 import sys
-import time
 from shutil import rmtree
 
 from setuptools import find_packages, setup, Command
@@ -19,7 +18,7 @@ URL = 'https://github.com/abersheeran/websocks'
 EMAIL = 'me@abersheeran.com'
 AUTHOR = 'Aber Sheeran'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
