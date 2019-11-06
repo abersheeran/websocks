@@ -7,12 +7,14 @@ from urllib import request
 
 IPV4_PATTERN = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
 
-if os.name == "posix":
-    root = "~"
-else:
-    root = os.environ.get("USERPROFILE", "C:")
+# if os.name == "posix":
+#     root = "~"
+# else:
+#     root = os.environ.get("USERPROFILE", "C:")
+#
+# root = os.path.join(root, '.websocks')
 
-root = os.path.join(root, '.websocks')
+root = os.path.dirname(os.path.abspath(__file__))
 
 if not os.path.exists(root):
     os.makedirs(root)
@@ -63,7 +65,6 @@ class FilterRule:
         if url is None:
             print("gfwlist url is None, nothing to do.", flush=True)
             return
-        print(f"Downloading gfwlist from {url}", flush=True)
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(gfwlist_path, 'wb+') as file:
@@ -74,7 +75,6 @@ class FilterRule:
         if url is None:
             print("whitelist url is None, nothing to do.", flush=True)
             return
-        print(f"Downloading whitelist from {url}", flush=True)
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
         with open(whitelist_path, "wb+") as file:
