@@ -51,6 +51,10 @@ def is_local_ipv4(host: str) -> bool:
 class FilterRule:
 
     def __init__(self) -> None:
+        if os.path.exists(gfwlist_path):
+            self.download_gfwlist()
+        if os.path.exists(whitelist_path):
+            self.download_whitelist()
         self.gfwlist_file = open(gfwlist_path)
         self.whitelist_file = open(whitelist_path)
 
