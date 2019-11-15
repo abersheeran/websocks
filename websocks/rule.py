@@ -52,12 +52,8 @@ def is_local_ipv4(host: str) -> bool:
 class FilterRule:
 
     def __init__(self) -> None:
-        if not os.path.exists(gfwlist_path):
-            self.download_gfwlist()
-        if not os.path.exists(whitelist_path):
-            self.download_whitelist()
-        self.gfwlist_file = open(gfwlist_path)
-        self.whitelist_file = open(whitelist_path)
+        self.GOOGLE = re.compile(r".*?google\.[A-Za-z0-9-]+")
+        self.BLOGSPOT = re.compile(r".*?blogspot\.[A-Za-z0-9-]+")
 
     @staticmethod
     def download_gfwlist(url: str = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt") -> None:
@@ -79,6 +75,15 @@ class FilterRule:
         with open(whitelist_path, "wb+") as file:
             file.write(resp.read())
 
+    @staticmethod
+    def open(filepath: str) -> typing.Generator:
+        try:
+            file = open(filepath, "r")
+            for line in file.readlines():
+                yield line
+        except FileNotFoundError:
+            pass
+
     def judge(self, host: str) -> typing.Optional[bool]:
         """
         匹配例外则返回 False, 匹配成功则返回 True.
@@ -96,50 +101,38 @@ class FilterRule:
         """
         从白名单中匹配
         """
-        self.whitelist_file.seek(0, 0)
-        while True:
-            line = self.whitelist_file.readline()
-            if not line:
-                return
+        for line in self.open(whitelist_path):
             line = line.strip()
             if not line:
                 continue
             result = self._judge(line, host)
             if result is not None:
                 return result
-        self.whitelist_file.seek(0, 0)
 
     def _judge_gfwlist(self, host: str) -> typing.Optional[bool]:
         """
         从 GFWList 中匹配
         """
-        self.gfwlist_file.seek(0, 0)
-        while True:
-            line = self.gfwlist_file.readline()
-            if not line:
-                return
+        for line in self.open(gfwlist_path):
             line = line.strip()
             if not line:
                 continue
             result = self._judge(line, host)
             if result is not None:
                 return result
-        self.gfwlist_file.seek(0, 0)
+        if self.GOOGLE.match(host):
+            return True
+        if self.BLOGSPOT.match(host):
+            return True
 
     def _judge(self, line: str, host: str) -> typing.Optional[bool]:
         if line.startswith("!"):
             return None
-        if line.startswith("||"):
+        if line[:2] == "||":
             if host.startswith(line[2:]):
                 return True
-        elif line.startswith("|"):
-            # 由于是 host 匹配, 所以暂不需要配置此种规则
-            return None
-        elif line[0] in ("*", "."):
-            if host.endswith(line[1:]):
-                return True
-        elif line[0] == "/" and line[-1] == "/":
-            if re.search(line[1:-1], host):
+        elif line[0] == ".":
+            if host.endswith(line):
                 return True
         elif line.startswith("@@"):
             _ = self._judge(line[2:], host)
