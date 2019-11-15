@@ -10,5 +10,5 @@ WORKDIR /app
 COPY . /app
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev make \
-    && python3 setup.py install \
+    && pip3 install . \
     && apk del .build-deps
