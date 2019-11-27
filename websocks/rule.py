@@ -56,7 +56,7 @@ class FilterRule:
         self.BLOGSPOT = re.compile(r".*?blogspot\.[A-Za-z0-9-]+")
 
     @staticmethod
-    def download_gfwlist(url: str = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt") -> None:
+    def download_gfwlist(url: str = "https://cdn.jsdelivr.net/gh/gfwlist/gfwlist/gfwlist.txt") -> None:
         if url is None:
             print("gfwlist url is None, nothing to do.", flush=True)
             return
@@ -66,7 +66,7 @@ class FilterRule:
             base64.decode(resp, file)
 
     @staticmethod
-    def download_whitelist(url: str = "https://raw.githubusercontent.com/abersheeran/websocks/master/websocks/whitelist.txt") -> None:
+    def download_whitelist(url: str = "https://cdn.jsdelivr.net/gh/abersheeran/websocks/websocks/whitelist.txt") -> None:
         if url is None:
             print("whitelist url is None, nothing to do.", flush=True)
             return
