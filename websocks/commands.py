@@ -19,9 +19,9 @@ def main() -> None:
 
 
 @main.command()
-@click.option('-p', '--policy', default='AUTO', type=click.Choice(['AUTO', 'PROXY']))
-@click.option('-s', '--server', required=True)
-@click.argument('address', type=click.Tuple([str, int]))
+@click.option('-P', '--policy', default='AUTO', type=click.Choice(['AUTO', 'PROXY']))
+@click.option('-S', '--server', required=True)
+@click.argument('address', type=click.Tuple([str, int]), default=("127.0.0.1", "3128"))
 def client(policy, server, address):
     Socks5Server(
         address[0],
@@ -40,12 +40,11 @@ def download(list):
 
 
 @main.command()
-@click.option("-U", "--userpass", required=True)
-@click.argument('address', type=click.Tuple([str, int]))
+@click.option("-U", "--userpass", required=True, multiple=True)
+@click.argument('address', type=click.Tuple([str, int]), default=("0.0.0.0", "8765"))
 def server(address, userpass):
     WebsocksServer(
-        userpass.split(":")[0],
-        userpass.split(":")[1],
+        {_userpass.split(":")[0]: _userpass.split(":")[1] for _userpass in userpass},
         host=address[0],
         port=address[1]
     ).run()

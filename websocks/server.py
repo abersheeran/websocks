@@ -18,9 +18,8 @@ logger: logging.Logger = logging.getLogger("websocks")
 
 class WebsocksServer:
 
-    def __init__(self, username: str, password: str, *, host: str = "0.0.0.0", port: int = 8765):
-        self.username = username
-        self.password = password
+    def __init__(self, userlist: typing.Dict[str, str], *, host: str = "0.0.0.0", port: int = 8765):
+        self.userlist = userlist
         self.host = host
         self.port = port
 
@@ -60,8 +59,8 @@ class WebsocksServer:
         _type, _credentials = request_headers.get('Proxy-Authorization').split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
         if not (
-                username == self.username or
-                password == self.password
+                username in self.userlist and
+                password == self.userlist[username]
         ):
             logger.warning(f"Authorization Error: {username}:{password}")
             return http.HTTPStatus.NOT_FOUND, {}, b""

@@ -176,6 +176,25 @@ class PasswordAuthentication(BaseAuthentication):
             raise AuthenticationError("USERNAME or PASSWORD ERROR")
 
 
+def socks5_reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
+    """构造 socks5 服务响应"""
+    VER, RSV = b'\x05', b'\x00'
+    try:
+        BND_ADDR = inet_aton(IP)
+        ATYP = 1
+    except OSError:
+        try:
+            BND_ADDR = inet_pton(AF_INET6, IP)
+            ATYP = 4
+        except OSError:
+            BND_ADDR = len(IP).to_bytes(2, 'big') + IP.encode("UTF-8")
+            ATYP = 3
+    REP = REP.to_bytes(1, 'big')
+    ATYP = ATYP.to_bytes(1, 'big')
+    BND_PORT = int(port).to_bytes(2, 'big')
+    return VER + REP + RSV + ATYP + BND_ADDR + BND_PORT
+
+
 class Socks5Server:
     """A socks5 server"""
 
@@ -214,7 +233,7 @@ class Socks5Server:
             data = await sock.recv(4)
             VER, CMD, RSV, ATYP = data
             if VER != 5:
-                await sock.send(self.reply(GENERAL_SOCKS_SERVER_FAILURE))
+                await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE))
                 raise Socks5Error("Unsupported version!")
             # Parse target address
             if ATYP == 1:  # IPV4
@@ -227,7 +246,7 @@ class Socks5Server:
                 ipv6 = await sock.recv(16)
                 DST_ADDR = inet_ntop(AF_INET6, ipv6)
             else:
-                await sock.send(self.reply(ADDRESS_TYPE_NOT_SUPPORTED))
+                await sock.send(socks5_reply(ADDRESS_TYPE_NOT_SUPPORTED))
                 raise Socks5Error(f"Unsupported ATYP value: {ATYP}")
             DST_PORT = int.from_bytes(await sock.recv(2), 'big')
             if CMD == 1:
@@ -237,7 +256,7 @@ class Socks5Server:
             elif CMD == 3:
                 await self.socks5_udp_associate(sock, DST_ADDR, DST_PORT)
             else:
-                await sock.send(self.reply(COMMAND_NOT_SUPPORTED))
+                await sock.send(socks5_reply(COMMAND_NOT_SUPPORTED))
                 raise Socks5Error(f"Unsupported CMD value: {CMD}")
         except Socks5Error as e:
             logger.warning(str(e))
@@ -249,25 +268,6 @@ class Socks5Server:
             traceback.print_exc()
         finally:
             await sock.close()
-
-    @staticmethod
-    def reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
-        """构造响应值"""
-        VER, RSV = b'\x05', b'\x00'
-        try:
-            BND_ADDR = inet_aton(IP)
-            ATYP = 1
-        except OSError:
-            try:
-                BND_ADDR = inet_pton(AF_INET6, IP)
-                ATYP = 4
-            except OSError:
-                BND_ADDR = len(IP).to_bytes(2, 'big') + IP.encode("UTF-8")
-                ATYP = 3
-        REP = REP.to_bytes(1, 'big')
-        ATYP = ATYP.to_bytes(1, 'big')
-        BND_PORT = int(port).to_bytes(2, 'big')
-        return VER + REP + RSV + ATYP + BND_ADDR + BND_PORT
 
     async def socks5_connect(self, sock: TCPSocket, addr: str, port: int):
         try:
@@ -300,15 +300,15 @@ class Socks5Server:
 
             logger.info(f"{end_time - start_time:02.3f} {remote_type}: {addr}:{port}")
 
-            await sock.send(self.reply(SUCCEEDED))
+            await sock.send(socks5_reply(SUCCEEDED))
         except WebsocksRefused:
-            await sock.send(self.reply(CONNECTION_REFUSED))
+            await sock.send(socks5_reply(CONNECTION_REFUSED))
             logger.error(f"Proxy Refused: {addr}:{port}")
         except socket.gaierror:
-            await sock.send(self.reply(CONNECTION_REFUSED))
+            await sock.send(socks5_reply(CONNECTION_REFUSED))
             logger.error(f"Network error: Can't connect to {addr}:{port}")
         except Exception:
-            await sock.send(self.reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
+            await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
             logger.error(f"Unknown Error: ")
             traceback.print_exc()
         else:
@@ -322,11 +322,11 @@ class Socks5Server:
 
     async def socks5_bind(self, sock: TCPSocket, addr: str, port: int):
         """ 不支持 bind """
-        await sock.send(self.reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
+        await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
 
     async def socks5_udp_associate(self, sock: TCPSocket, addr: str, port: int):
         """ 不支持 UDP """
-        await sock.send(self.reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
+        await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(
