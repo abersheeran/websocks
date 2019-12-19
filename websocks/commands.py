@@ -19,13 +19,7 @@ def main() -> None:
 
 
 @main.command()
-@click.option(
-    "-P",
-    "--policy",
-    default="AUTO",
-    type=click.Choice(["AUTO", "PROXY"]),
-    help="代理策略: AUTO 为自动代理; PROXY 为全部代理",
-)
+@click.option("-P", "--policy", default="AUTO", type=click.Choice(["AUTO", "PROXY"]))
 @click.option("-S", "--server", required=True, help="USERNAME:PASSWORD@HOST:PORT")
 @click.argument("address", type=click.Tuple([str, int]), default=("127.0.0.1", "3128"))
 def client(policy, server, address):
