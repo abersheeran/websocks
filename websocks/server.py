@@ -18,10 +18,18 @@ logger: logging.Logger = logging.getLogger("websocks")
 
 class WebsocksServer:
 
-    def __init__(self, userlist: typing.Dict[str, str], *, host: str = "0.0.0.0", port: int = 8765):
+    def __init__(
+        self,
+        userlist: typing.Dict[str, str],
+        *,
+        host: str = "0.0.0.0",
+        port: int = 8765,
+        authname: str = "Proxy-Authorization"
+    ):
         self.userlist = userlist
         self.host = host
         self.port = port
+        self.authname = authname
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
         logger.info(f"Connect from {sock.remote_address}")
@@ -55,8 +63,10 @@ class WebsocksServer:
     async def handshake(
         self, path: str, request_headers: Headers
     ) -> typing.Optional[HTTPResponse]:
+        if not request_headers.get(self.authname):
+            return http.HTTPStatus.NOT_FOUND, {}, b""
         # parse credentials
-        _type, _credentials = request_headers.get('Proxy-Authorization').split(" ")
+        _type, _credentials = request_headers.get(self.authname).split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
         if not (
                 username in self.userlist and
