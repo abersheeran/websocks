@@ -1,6 +1,6 @@
 # websocks
 
-[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/abersheeran/websocks?style=flat-square)](https://hub.docker.com/r/abersheeran/websocks)
+[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/abersheeran/websocks?style=flat-square)](https://hub.docker.com/r/abersheeran/websocks) ![Docker Pulls](https://img.shields.io/docker/pulls/abersheeran/websocks)
 
 基于隧道与拟态流量混淆的匿名通信系统。
 
