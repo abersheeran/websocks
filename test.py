@@ -4,6 +4,7 @@ import traceback
 
 try:
     import socks
+
     socks.set_default_proxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 3128)
     socket.socket = socks.socksocket
 except ImportError:

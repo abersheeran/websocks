@@ -17,7 +17,6 @@ logger: logging.Logger = logging.getLogger("websocks")
 
 
 class WebsocksServer:
-
     def __init__(
         self,
         userlist: typing.Dict[str, str],
@@ -37,16 +36,9 @@ class WebsocksServer:
                 assert isinstance(data, str)
                 request = json.loads(data)
                 try:
-                    remote = await create_connection(
-                        request['HOST'],
-                        request['PORT']
-                    )
+                    remote = await create_connection(request["HOST"], request["PORT"])
                     await sock.send(json.dumps({"ALLOW": True}))
-                except (
-                    ConnectionRefusedError,
-                    asyncio.TimeoutError,
-                    TimeoutError
-                ):
+                except (ConnectionRefusedError, asyncio.TimeoutError, TimeoutError):
                     await sock.send(json.dumps({"ALLOW": False}))
                     continue
                 await bridge(WebSocket(sock), remote)
@@ -66,19 +58,13 @@ class WebsocksServer:
         # parse credentials
         _type, _credentials = request_headers.get("Authorization").split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
-        if not (
-                username in self.userlist and
-                password == self.userlist[username]
-        ):
+        if not (username in self.userlist and password == self.userlist[username]):
             logger.warning(f"Authorization Error: {username}:{password}")
             return http.HTTPStatus.NOT_FOUND, {}, b""
 
     async def run_server(self) -> typing.NoReturn:
         async with websockets.serve(
-            self._link,
-            host=self.host,
-            port=self.port,
-            process_request=self.handshake
+            self._link, host=self.host, port=self.port, process_request=self.handshake
         ) as server:
             logger.info(f"Websocks Server serving on {self.host}:{self.port}")
 
@@ -101,8 +87,8 @@ class WebsocksServer:
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format='[%(asctime)s] [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
+        format="[%(asctime)s] [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     WebsocksServer().run()

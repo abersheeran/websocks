@@ -12,12 +12,7 @@ from socket import inet_aton, inet_ntoa, inet_ntop, inet_pton, AF_INET6
 
 import websockets
 
-from .utils import (
-    TCPSocket,
-    bridge,
-    create_connection,
-    connect_server
-)
+from .utils import TCPSocket, bridge, create_connection, connect_server
 from .exceptions import WebsocksRefused
 
 from . import rule
@@ -25,31 +20,29 @@ from . import rule
 DIRECT = "Direct"
 PROXY = "Proxy"
 
-SERVER_URL = re.compile(r"(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>.*?)")
+SERVER_URL = re.compile(
+    r"(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>.*?)"
+)
 
 logger: logging.Logger = logging.getLogger("websocks")
 
 
 class Pool:
-
     def __init__(self, server: str, initsize: int = 7) -> None:
         _proxy = SERVER_URL.match(server)
-        self.username = _proxy.group('username')
-        self.password = _proxy.group('password')
-        self.server = "wss://" + _proxy.group('host') + ":" + _proxy.group('port')
+        self.username = _proxy.group("username")
+        self.password = _proxy.group("password")
+        self.server = "wss://" + _proxy.group("host") + ":" + _proxy.group("port")
 
         self.initsize = initsize
         self._freepool = set()
-        asyncio.get_event_loop().create_task(
-            self.init(initsize)
-        )
+        asyncio.get_event_loop().create_task(self.init(initsize))
         self.timed_task()
 
     async def init(self, size: int) -> None:
         await asyncio.gather(*[self._create() for _ in range(size)])
 
     def timed_task(self) -> None:
-
         async def _timed_task() -> None:
             while True:
                 await asyncio.sleep(7)
@@ -83,14 +76,13 @@ class Pool:
             self._freepool.add(sock)
 
     def get_credentials(self) -> str:
-        return "Basic " + base64.b64encode(f"{self.username}:{self.password}".encode("utf8")).decode("utf8")
+        return "Basic " + base64.b64encode(
+            f"{self.username}:{self.password}".encode("utf8")
+        ).decode("utf8")
 
     async def _create(self):
         sock = await websockets.connect(
-            self.server,
-            extra_headers={
-                "Authorization": self.get_credentials()
-            }
+            self.server, extra_headers={"Authorization": self.get_credentials()}
         )
         self._freepool.add(sock)
 
@@ -104,7 +96,7 @@ class AuthenticationError(Socks5Error):
 
 
 # Empty byte
-EMPTY = b''
+EMPTY = b""
 # Response Type
 SUCCEEDED = 0
 GENERAL_SOCKS_SERVER_FAILURE = 1
@@ -118,7 +110,6 @@ ADDRESS_TYPE_NOT_SUPPORTED = 8
 
 
 class BaseAuthentication:
-
     def __init__(self, socket: TCPSocket):
         self.socket = socket
 
@@ -162,12 +153,12 @@ class PasswordAuthentication(BaseAuthentication):
 
     async def authenticate(self):
         VER = await self.socket.recv(1)
-        if VER != b'\x01':
+        if VER != b"\x01":
             await self.socket.send(b"\x01\x01")
             raise Socks5Error("Unsupported version!")
-        ULEN = int.from_bytes(await self.socket.recv(1), 'big')
+        ULEN = int.from_bytes(await self.socket.recv(1), "big")
         UNAME = (await self.socket.recv(ULEN)).decode("ASCII")
-        PLEN = int.from_bytes(await self.socket.recv(1), 'big')
+        PLEN = int.from_bytes(await self.socket.recv(1), "big")
         PASSWD = (await self.socket.recv(PLEN)).decode("ASCII")
         if self._getUser().get(UNAME) and self._getUser().get(UNAME) == PASSWD:
             await self.socket.send(b"\x01\x00")
@@ -178,7 +169,7 @@ class PasswordAuthentication(BaseAuthentication):
 
 def socks5_reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
     """构造 socks5 服务响应"""
-    VER, RSV = b'\x05', b'\x00'
+    VER, RSV = b"\x05", b"\x00"
     try:
         BND_ADDR = inet_aton(IP)
         ATYP = 1
@@ -187,11 +178,11 @@ def socks5_reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
             BND_ADDR = inet_pton(AF_INET6, IP)
             ATYP = 4
         except OSError:
-            BND_ADDR = len(IP).to_bytes(2, 'big') + IP.encode("UTF-8")
+            BND_ADDR = len(IP).to_bytes(2, "big") + IP.encode("UTF-8")
             ATYP = 3
-    REP = REP.to_bytes(1, 'big')
-    ATYP = ATYP.to_bytes(1, 'big')
-    BND_PORT = int(port).to_bytes(2, 'big')
+    REP = REP.to_bytes(1, "big")
+    ATYP = ATYP.to_bytes(1, "big")
+    BND_PORT = int(port).to_bytes(2, "big")
     return VER + REP + RSV + ATYP + BND_ADDR + BND_PORT
 
 
@@ -205,7 +196,7 @@ class Socks5Server:
         host: str = "0.0.0.0",
         port: int = 3128,
         policy: str = "AUTO",
-        server: str = None
+        server: str = None,
     ) -> None:
         assert server is not None
 
@@ -214,7 +205,9 @@ class Socks5Server:
         self.policy = policy
         self.pool = Pool(server)
 
-    async def dispatch(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def dispatch(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         sock = TCPSocket(reader, writer)
         authentication = self.Authentication(sock)
         try:
@@ -225,7 +218,7 @@ class Socks5Server:
                 raise Socks5Error("Unsupported version!")
             METHODS = set(await sock.recv(NMETHODS))
             METHOD = authentication.getMethod(METHODS)
-            reply = b'\x05' + METHOD.to_bytes(1, 'big')
+            reply = b"\x05" + METHOD.to_bytes(1, "big")
             await sock.send(reply)
             if METHOD == 255:
                 raise Socks5Error("No methods available")
@@ -240,7 +233,7 @@ class Socks5Server:
                 ipv4 = await sock.recv(4)
                 DST_ADDR = inet_ntoa(ipv4)
             elif ATYP == 3:  # Domain
-                addr_len = int.from_bytes(await sock.recv(1), byteorder='big')
+                addr_len = int.from_bytes(await sock.recv(1), byteorder="big")
                 DST_ADDR = (await sock.recv(addr_len)).decode()
             elif ATYP == 4:  # IPV6
                 ipv6 = await sock.recv(16)
@@ -248,7 +241,7 @@ class Socks5Server:
             else:
                 await sock.send(socks5_reply(ADDRESS_TYPE_NOT_SUPPORTED))
                 raise Socks5Error(f"Unsupported ATYP value: {ATYP}")
-            DST_PORT = int.from_bytes(await sock.recv(2), 'big')
+            DST_PORT = int.from_bytes(await sock.recv(2), "big")
             if CMD == 1:
                 await self.socks5_connect(sock, DST_ADDR, DST_PORT)
             elif CMD == 2:
@@ -260,10 +253,7 @@ class Socks5Server:
                 raise Socks5Error(f"Unsupported CMD value: {CMD}")
         except Socks5Error as e:
             logger.warning(str(e))
-        except (
-            ConnectionResetError,
-            ConnectionAbortedError
-        ):
+        except (ConnectionResetError, ConnectionAbortedError):
             logger.error(f"Unknown Error: ")
             traceback.print_exc()
         finally:
@@ -280,8 +270,7 @@ class Socks5Server:
             elif need_proxy is None and self.policy == "AUTO":
                 try:
                     remote = await asyncio.wait_for(
-                        create_connection(addr, port),
-                        timeout=2.3
+                        create_connection(addr, port), timeout=2.3
                     )
                     remote_type = DIRECT
                 except (asyncio.TimeoutError, socket.gaierror):
@@ -329,9 +318,7 @@ class Socks5Server:
         await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
 
     async def run_server(self) -> typing.NoReturn:
-        server = await asyncio.start_server(
-            self.dispatch, self.host, self.port
-        )
+        server = await asyncio.start_server(self.dispatch, self.host, self.port)
         logger.info(f"Socks5 Server serving on {server.sockets[0].getsockname()}")
 
         def termina(signo, frame):
@@ -353,7 +340,7 @@ class Socks5Server:
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format='[%(asctime)s] [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
+        format="[%(asctime)s] [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     Socks5Server().run()

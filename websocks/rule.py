@@ -18,14 +18,8 @@ root = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(root):
     os.makedirs(root)
 
-gfwlist_path = os.path.join(
-    root,
-    'gfwlist.txt'
-)
-whitelist_path = os.path.join(
-    root,
-    'whitelist.txt'
-)
+gfwlist_path = os.path.join(root, "gfwlist.txt")
+whitelist_path = os.path.join(root, "whitelist.txt")
 
 cache: set = set()
 
@@ -39,8 +33,9 @@ def is_local_ipv4(host: str) -> bool:
     if host.startswith("10.") or host.startswith("127."):
         # A类地址
         return True
-    if host.startswith("169.254.") or \
-            (host.startswith("172.") and 16 <= int(host.split(".")[1]) <= 31):
+    if host.startswith("169.254.") or (
+        host.startswith("172.") and 16 <= int(host.split(".")[1]) <= 31
+    ):
         # B类地址
         return True
     if host.startswith("192.168."):
@@ -50,25 +45,30 @@ def is_local_ipv4(host: str) -> bool:
 
 
 class FilterRule:
-
     def __init__(self) -> None:
         self.black_list = (
-            re.compile(r".*?google\.(ac|ad|ae|af|al|am|as|at|az|ba|be|bf|bg|bi|bj|bs|bt|by|ca|cat|cd|cf|cg|ch|ci|cl|cm|co.ao|co.bw|co.ck|co.cr|co.id|co.il|co.in|co.jp|co.ke|co.kr|co.ls|co.ma|com|com.af|com.ag|com.ai|com.ar|com.au|com.bd|com.bh|com.bn|com.bo|com.br|com.bz|com.co|com.cu|com.cy|com.do|com.ec|com.eg|com.et|com.fj|com.gh|com.gi|com.gt|com.hk|com.jm|com.kh|com.kw|com.lb|com.ly|com.mm|com.mt|com.mx|com.my|com.na|com.nf|com.ng|com.ni|com.np|com.om|com.pa|com.pe|com.pg|com.ph|com.pk|com.pr|com.py|com.qa|com.sa|com.sb|com.sg|com.sl|com.sv|com.tj|com.tr|com.tw|com.ua|com.uy|com.vc|com.vn|co.mz|co.nz|co.th|co.tz|co.ug|co.uk|co.uz|co.ve|co.vi|co.za|co.zm|co.zw|cv|cz|de|dj|dk|dm|dz|ee|es|eu|fi|fm|fr|ga|ge|gg|gl|gm|gp|gr|gy|hk|hn|hr|ht|hu|ie|im|iq|is|it|it.ao|je|jo|kg|ki|kz|la|li|lk|lt|lu|lv|md|me|mg|mk|ml|mn|ms|mu|mv|mw|mx|ne|nl|no|nr|nu|org|pl|pn|ps|pt|ro|rs|ru|rw|sc|se|sh|si|sk|sm|sn|so|sr|st|td|tg|tk|tl|tm|tn|to|tt|us|vg|vn|vu|ws)"),
-            re.compile(r".*?blogspot\.[A-Za-z0-9-]+")
+            re.compile(
+                r".*?google\.(ac|ad|ae|af|al|am|as|at|az|ba|be|bf|bg|bi|bj|bs|bt|by|ca|cat|cd|cf|cg|ch|ci|cl|cm|co.ao|co.bw|co.ck|co.cr|co.id|co.il|co.in|co.jp|co.ke|co.kr|co.ls|co.ma|com|com.af|com.ag|com.ai|com.ar|com.au|com.bd|com.bh|com.bn|com.bo|com.br|com.bz|com.co|com.cu|com.cy|com.do|com.ec|com.eg|com.et|com.fj|com.gh|com.gi|com.gt|com.hk|com.jm|com.kh|com.kw|com.lb|com.ly|com.mm|com.mt|com.mx|com.my|com.na|com.nf|com.ng|com.ni|com.np|com.om|com.pa|com.pe|com.pg|com.ph|com.pk|com.pr|com.py|com.qa|com.sa|com.sb|com.sg|com.sl|com.sv|com.tj|com.tr|com.tw|com.ua|com.uy|com.vc|com.vn|co.mz|co.nz|co.th|co.tz|co.ug|co.uk|co.uz|co.ve|co.vi|co.za|co.zm|co.zw|cv|cz|de|dj|dk|dm|dz|ee|es|eu|fi|fm|fr|ga|ge|gg|gl|gm|gp|gr|gy|hk|hn|hr|ht|hu|ie|im|iq|is|it|it.ao|je|jo|kg|ki|kz|la|li|lk|lt|lu|lv|md|me|mg|mk|ml|mn|ms|mu|mv|mw|mx|ne|nl|no|nr|nu|org|pl|pn|ps|pt|ro|rs|ru|rw|sc|se|sh|si|sk|sm|sn|so|sr|st|td|tg|tk|tl|tm|tn|to|tt|us|vg|vn|vu|ws)"
+            ),
+            re.compile(r".*?blogspot\.[A-Za-z0-9-]+"),
         )
 
     @staticmethod
-    def download_gfwlist(url: str = "https://cdn.jsdelivr.net/gh/gfwlist/gfwlist/gfwlist.txt") -> None:
+    def download_gfwlist(
+        url: str = "https://cdn.jsdelivr.net/gh/gfwlist/gfwlist/gfwlist.txt",
+    ) -> None:
         if url is None:
             print("gfwlist url is None, nothing to do.", flush=True)
             return
         req = request.Request(url, method="GET")
         resp = request.urlopen(req)
-        with open(gfwlist_path, 'wb+') as file:
+        with open(gfwlist_path, "wb+") as file:
             base64.decode(resp, file)
 
     @staticmethod
-    def download_whitelist(url: str = "https://cdn.jsdelivr.net/gh/abersheeran/websocks/websocks/whitelist.txt") -> None:
+    def download_whitelist(
+        url: str = "https://cdn.jsdelivr.net/gh/abersheeran/websocks/websocks/whitelist.txt",
+    ) -> None:
         if url is None:
             print("whitelist url is None, nothing to do.", flush=True)
             return

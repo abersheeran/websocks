@@ -8,18 +8,13 @@ import websockets
 from websockets import WebSocketClientProtocol, WebSocketCommonProtocol
 
 from .types import Socket
-from .exceptions import (
-    WebsocksImplementationError,
-    WebsocksClosed,
-    WebsocksRefused
-)
+from .exceptions import WebsocksImplementationError, WebsocksClosed, WebsocksRefused
 
 
 logger: logging.Logger = logging.getLogger("websocks")
 
 
 class TCPSocket(Socket):
-
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.r = reader
         self.w = writer
@@ -44,29 +39,28 @@ class TCPSocket(Socket):
 
 
 class WebSocket(Socket):
-
     def __init__(self, sock: WebSocketCommonProtocol):
         self.sock = sock
-        self.status = 'OPEN'
+        self.status = "OPEN"
 
     async def recv(self, num: int = -1) -> bytes:
         try:
             data = await self.sock.recv()
         except websockets.exceptions.ConnectionClosed:
-            raise ConnectionResetError('websocket closed.')
+            raise ConnectionResetError("websocket closed.")
         logger.debug(f"<<< {data}")
         if isinstance(data, str):  # websocks
             _data = json.loads(data)
             if _data.get("STATUS") == "CLOSED":
-                self.status = 'CLOSED'
-                raise WebsocksClosed('websocks closed.')
+                self.status = "CLOSED"
+                raise WebsocksClosed("websocks closed.")
         return data
 
     async def send(self, data: bytes) -> int:
         try:
             await self.sock.send(data)
         except websockets.exceptions.ConnectionClosed:
-            raise ConnectionResetError('websocket closed.')
+            raise ConnectionResetError("websocket closed.")
         logger.debug(f">>> {data}")
         return len(data)
 
@@ -91,18 +85,15 @@ async def create_connection(host: str, port: int) -> TCPSocket:
 
 
 async def connect_server(
-        sock: WebSocketClientProtocol,
-        host: str, port: int
+    sock: WebSocketClientProtocol, host: str, port: int
 ) -> WebSocket:
     """connect websocks server"""
     await sock.send(json.dumps({"HOST": host, "PORT": port}))
     resp = await sock.recv()
     try:
-        assert isinstance(resp, str), 'must be str'
-        if not json.loads(resp)['ALLOW']:
-            raise WebsocksRefused(
-                f"websocks server can't connect {host}:{port}"
-            )
+        assert isinstance(resp, str), "must be str"
+        if not json.loads(resp)["ALLOW"]:
+            raise WebsocksRefused(f"websocks server can't connect {host}:{port}")
     except (AssertionError, KeyError):
         print(resp)
         raise WebsocksImplementationError()
@@ -167,16 +158,10 @@ async def bridge(local: Socket, remote: Socket) -> None:
                 logger.debug(f">=< {data}")
         except WebsocksClosed:  # WebSocket
             await sender.reset()
-        except (
-            ConnectionAbortedError,
-            ConnectionResetError
-        ):
+        except (ConnectionAbortedError, ConnectionResetError):
             pass
 
-    await onlyfirst(
-        forward(local, remote),
-        forward(remote, local)
-    )
+    await onlyfirst(forward(local, remote), forward(remote, local))
 
     if _websocks is None or _websocks.closed:
         return

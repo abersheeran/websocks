@@ -5,7 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 pylint = "*"
-autopep8 = "*"
+black = "*"
 pysocks = "*"
 pytest = "*"
 
@@ -16,3 +16,6 @@ click = "*"
 
 [requires]
 python_version = "3"
+
+[pipenv]
+allow_prereleases = true
