@@ -89,7 +89,7 @@ class Pool:
         sock = await websockets.connect(
             self.server,
             extra_headers={
-                "Proxy-Authorization": self.get_credentials()
+                "Authorization": self.get_credentials()
             }
         )
         self._freepool.add(sock)

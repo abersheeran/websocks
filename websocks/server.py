@@ -24,12 +24,10 @@ class WebsocksServer:
         *,
         host: str = "0.0.0.0",
         port: int = 8765,
-        authname: str = "Proxy-Authorization"
     ):
         self.userlist = userlist
         self.host = host
         self.port = port
-        self.authname = authname
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
         logger.info(f"Connect from {sock.remote_address}")
@@ -63,10 +61,10 @@ class WebsocksServer:
     async def handshake(
         self, path: str, request_headers: Headers
     ) -> typing.Optional[HTTPResponse]:
-        if not request_headers.get(self.authname):
+        if not request_headers.get("Authorization"):
             return http.HTTPStatus.NOT_FOUND, {}, b""
         # parse credentials
-        _type, _credentials = request_headers.get(self.authname).split(" ")
+        _type, _credentials = request_headers.get("Authorization").split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
         if not (
                 username in self.userlist and
