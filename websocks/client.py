@@ -21,7 +21,7 @@ DIRECT = "Direct"
 PROXY = "Proxy"
 
 SERVER_URL = re.compile(
-    r"(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>.*?)"
+    r"(?P<protocol>(ws|wss))://(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>\d+)"
 )
 
 logger: logging.Logger = logging.getLogger("websocks")
@@ -32,7 +32,13 @@ class Pool:
         _proxy = SERVER_URL.match(server)
         self.username = _proxy.group("username")
         self.password = _proxy.group("password")
-        self.server = "wss://" + _proxy.group("host") + ":" + _proxy.group("port")
+        self.server = (
+            _proxy.group("protocol")
+            + "://"
+            + _proxy.group("host")
+            + ":"
+            + _proxy.group("port")
+        )
 
         self.initsize = initsize
         self._freepool = set()

@@ -95,7 +95,6 @@ async def connect_server(
         if not json.loads(resp)["ALLOW"]:
             raise WebsocksRefused(f"websocks server can't connect {host}:{port}")
     except (AssertionError, KeyError):
-        print(resp)
         raise WebsocksImplementationError()
     return WebSocket(sock)
 

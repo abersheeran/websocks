@@ -54,13 +54,13 @@ class WebsocksServer:
         self, path: str, request_headers: Headers
     ) -> typing.Optional[HTTPResponse]:
         if not request_headers.get("Authorization"):
-            return http.HTTPStatus.NOT_FOUND, {}, b""
+            return http.HTTPStatus.UNAUTHORIZED, {}, b""
         # parse credentials
         _type, _credentials = request_headers.get("Authorization").split(" ")
         username, password = base64.b64decode(_credentials).decode("utf8").split(":")
         if not (username in self.userlist and password == self.userlist[username]):
             logger.warning(f"Authorization Error: {username}:{password}")
-            return http.HTTPStatus.NOT_FOUND, {}, b""
+            return http.HTTPStatus.UNAUTHORIZED, {}, b""
 
     async def run_server(self) -> typing.NoReturn:
         async with websockets.serve(
