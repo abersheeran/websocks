@@ -18,7 +18,7 @@ URL = "https://github.com/abersheeran/websocks"
 EMAIL = "me@abersheeran.com"
 AUTHOR = "Aber Sheeran"
 REQUIRES_PYTHON = ">=3.6.0"
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 
 # What packages are required for this module to be executed?
 REQUIRED = [

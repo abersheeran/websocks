@@ -1,7 +1,7 @@
 import json
 import asyncio
 import logging
-from typing import Set
+from typing import Set, Tuple, Dict, Any
 from asyncio import Future, Task, CancelledError
 
 import websockets
@@ -12,6 +12,19 @@ from .exceptions import WebsocksImplementationError, WebsocksClosed, WebsocksRef
 
 
 logger: logging.Logger = logging.getLogger("websocks")
+
+
+class Singleton(type):
+    def __init__(
+        cls, name: str, bases: Tuple[type], namespace: Dict[str, Any],
+    ) -> None:
+        cls.instance = None
+        super().__init__(name, bases, namespace)
+
+    def __call__(cls, *args, **kwargs) -> Any:
+        if cls.instance is None:
+            cls.instance = super().__call__(*args, **kwargs)
+        return cls.instance
 
 
 class TCPSocket(Socket):
