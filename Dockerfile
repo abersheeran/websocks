@@ -14,12 +14,12 @@ ENV LANG C.UTF-8
 # Python, don't write bytecode!
 ENV PYTHONDONTWRITEBYTECODE 1
 
-COPY --from=build /app/setup.py .
-
 WORKDIR /app
 
 COPY . /app
 RUN rm -f pyproject.toml poetry.lock
+
+COPY --from=build /app/setup.py .
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev make \
     && pip3 install . \
