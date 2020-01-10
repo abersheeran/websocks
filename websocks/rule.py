@@ -159,6 +159,7 @@ def judge(host: str) -> typing.Optional[bool]:
     if is_ipv4(host):
         if is_local_ipv4(host):
             return False
+        return host in cache or None
 
     if host in cache:
         return True
