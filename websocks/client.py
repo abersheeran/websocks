@@ -279,7 +279,7 @@ class Socks5Server:
                         create_connection(addr, port), timeout=2.3
                     )
                     remote_type = DIRECT
-                except (asyncio.TimeoutError, socket.gaierror, ConnectionError):
+                except (asyncio.TimeoutError, socket.gaierror, ConnectionError, TimeoutError):
                     try:
                         _remote = await self.pool.acquire()
                         remote = await connect_server(_remote, addr, port)

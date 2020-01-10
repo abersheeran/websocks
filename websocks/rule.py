@@ -157,7 +157,8 @@ class FilterRule(metaclass=Singleton):
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
     if is_ipv4(host):
-        return not is_local_ipv4(host)
+        if is_local_ipv4(host):
+            return False
 
     if host in cache:
         return True
