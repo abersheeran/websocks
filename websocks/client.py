@@ -12,7 +12,7 @@ from socket import inet_aton, inet_ntoa, inet_ntop, inet_pton, AF_INET6
 
 import websockets
 
-from .utils import TCPSocket, bridge, create_connection, connect_server
+from ._websocks import TCPSocket, bridge, create_connection, connect_server
 from .exceptions import WebsocksRefused
 
 from . import rule
@@ -42,13 +42,17 @@ class Pool:
 
         self.initsize = initsize
         self._freepool = set()
-        asyncio.get_event_loop().create_task(self.init(initsize))
+        self.init(initsize)
         self.timed_task()
 
-    async def init(self, size: int) -> None:
-        await asyncio.gather(*[self._create() for _ in range(size)])
+    def init(self, size: int) -> None:
+        """初始化 Socket 池"""
+        for _ in range(size):
+            asyncio.get_event_loop().create_task(self._create())
 
     def timed_task(self) -> None:
+        """定时清理池中的 Socket"""
+
         async def _timed_task() -> None:
             while True:
                 await asyncio.sleep(7)
@@ -279,7 +283,12 @@ class Socks5Server:
                         create_connection(addr, port), timeout=2.3
                     )
                     remote_type = DIRECT
-                except (asyncio.TimeoutError, socket.gaierror, ConnectionError, TimeoutError):
+                except (
+                    asyncio.TimeoutError,
+                    socket.gaierror,
+                    ConnectionError,
+                    TimeoutError,
+                ):
                     try:
                         _remote = await self.pool.acquire()
                         remote = await connect_server(_remote, addr, port)

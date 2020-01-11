@@ -11,7 +11,7 @@ from websockets import WebSocketServerProtocol
 from websockets.server import HTTPResponse
 from websockets.http import Headers
 
-from .utils import create_connection, WebSocket, bridge
+from ._websocks import create_connection, WebSocket, bridge
 
 logger: logging.Logger = logging.getLogger("websocks")
 
