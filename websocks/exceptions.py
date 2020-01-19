@@ -6,9 +6,9 @@ class WebsocksImplementationError(WebsocksError):
     pass
 
 
-class WebsocksClosed(WebsocksError):
+class WebsocksClosed(ConnectionResetError):
     pass
 
 
-class WebsocksRefused(WebsocksError):
+class WebsocksRefused(ConnectionRefusedError):
     pass

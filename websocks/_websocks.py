@@ -3,6 +3,7 @@ websocks 协议封装
 """
 import json
 import asyncio
+from enum import IntEnum
 
 import websockets
 from websockets import WebSocketClientProtocol, WebSocketCommonProtocol
@@ -10,6 +11,11 @@ from websockets import WebSocketClientProtocol, WebSocketCommonProtocol
 from .types import Socket
 from .utils import logger
 from .exceptions import WebsocksImplementationError, WebsocksClosed, WebsocksRefused
+
+
+class STATUS(IntEnum):
+    OPEN = 1
+    CLOSED = 0
 
 
 class TCPSocket(Socket):
@@ -39,18 +45,19 @@ class TCPSocket(Socket):
 class WebSocket(Socket):
     def __init__(self, sock: WebSocketCommonProtocol):
         self.sock = sock
-        self.status = "OPEN"
+        self.status = STATUS.OPEN
 
     async def recv(self, num: int = -1) -> bytes:
         try:
             data = await self.sock.recv()
         except websockets.exceptions.ConnectionClosed:
+            self.status = STATUS.CLOSED
             raise ConnectionResetError("websocket closed.")
         logger.debug(f"<<< {data}")
         if isinstance(data, str):  # websocks
             _data = json.loads(data)
             if _data.get("STATUS") == "CLOSED":
-                self.status = "CLOSED"
+                self.status = STATUS.CLOSED
                 raise WebsocksClosed("websocks closed.")
         return data
 
@@ -58,22 +65,26 @@ class WebSocket(Socket):
         try:
             await self.sock.send(data)
         except websockets.exceptions.ConnectionClosed:
+            self.status = STATUS.CLOSED
             raise ConnectionResetError("websocket closed.")
         logger.debug(f">>> {data}")
         return len(data)
 
     async def close(self) -> None:
-        await self.sock.close()
-
-    @property
-    def closed(self) -> bool:
-        return self.sock.closed
-
-    async def reset(self) -> None:
         try:
             await self.sock.send(json.dumps({"STATUS": "CLOSED"}))
         except websockets.exceptions.ConnectionClosed:
+            return
+
+        try:  # websocks close
+            while not self.closed:
+                _ = await self.recv()
+        except ConnectionResetError:
             pass
+
+    @property
+    def closed(self) -> bool:
+        return self.status == STATUS.CLOSED
 
 
 async def create_connection(host: str, port: int) -> TCPSocket:
@@ -95,41 +106,3 @@ async def connect_server(
     except (AssertionError, KeyError):
         raise WebsocksImplementationError()
     return WebSocket(sock)
-
-
-async def bridge(local: Socket, remote: Socket) -> None:
-
-    if isinstance(local, WebSocket):
-        _websocks = local
-    elif isinstance(remote, WebSocket):
-        _websocks = remote
-    else:
-        _websocks = None
-
-    async def forward(sender: Socket, receiver: Socket) -> None:
-        try:
-            while True:
-                data = await sender.recv()
-                if not data:
-                    break
-                await receiver.send(data)
-                logger.debug(f">=< {data}")
-        except WebsocksClosed:  # WebSocket
-            await sender.reset()
-        except (ConnectionAbortedError, ConnectionResetError):
-            pass
-
-    await onlyfirst(forward(local, remote), forward(remote, local))
-
-    if _websocks is None or _websocks.closed:
-        return
-
-    if _websocks.status == "CLOSED":
-        return
-
-    await _websocks.reset()
-    try:
-        while True:
-            await _websocks.recv()
-    except WebsocksClosed:
-        pass
