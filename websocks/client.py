@@ -2,58 +2,106 @@ import os
 import re
 import time
 import base64
+import socket
 import signal
+import random
 import asyncio
 import typing
 import logging
 import traceback
-import socket
-from socket import inet_aton, inet_ntoa, inet_ntop, inet_pton, AF_INET6
+from functools import partial
 
 import websockets
+from websockets import WebSocketClientProtocol
+from socks5.server.core import ConnectSession as _ConnectSession, Socks5
+from socks5.utils import judge_atyp
+from socks5.types import Socket
 
-from ._websocks import TCPSocket, bridge, create_connection, connect_server
-from .exceptions import WebsocksRefused
-
+from .utils import Singleton, onlyfirst
 from . import rule
 
-DIRECT = "Direct"
-PROXY = "Proxy"
-
-SERVER_URL = re.compile(
-    r"(?P<protocol>(ws|wss))://(?P<username>.*?):(?P<password>.*?)@(?P<host>.*?):(?P<port>\d+)"
-)
 
 logger: logging.Logger = logging.getLogger("websocks")
 
 
+class WebsocksError(Exception):
+    pass
+
+
+class WebsocksImplementationError(WebsocksError):
+    pass
+
+
+class WebsocksClosed(ConnectionResetError):
+    pass
+
+
+class WebsocksRefused(ConnectionRefusedError):
+    pass
+
+
+################################################
+# POLICY
+################################################
+
+
+__policy__ = "AUTO"
+
+
+def set_policy(policy: str) -> None:
+    global __policy__
+    __policy__ = policy
+
+
+def get_policy() -> str:
+    return __policy__
+
+
+################################################
+# WEBSOCKET POOL
+################################################
+
+
+class ServerURL:
+    def __init__(self, server_url: str) -> None:
+        url_format = re.compile(
+            r"(?P<protocol>(ws|wss))://(?P<username>.+?):(?P<password>.+?)@(?P<uri>.+?)"
+        )
+        match = url_format.match(server_url)
+        self.protocol = match.group("protocol")
+        self.username = match.group("username")
+        self.password = match.group("password")
+        self.uri = match.group("uri")
+
+    def __str__(self) -> str:
+        return f"{self.protocol}://{self.uri}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
 class Pool:
     def __init__(self, server: str, initsize: int = 7) -> None:
-        _proxy = SERVER_URL.match(server)
-        self.username = _proxy.group("username")
-        self.password = _proxy.group("password")
-        self.server = (
-            _proxy.group("protocol")
-            + "://"
-            + _proxy.group("host")
-            + ":"
-            + _proxy.group("port")
-        )
+        server_url = ServerURL(server)
+        self.get_credentials = lambda: "Basic " + base64.b64encode(
+            f"{server_url.username}:{server_url.password}".encode("utf8")
+        ).decode("utf8")
+        self.server = str(server_url)
 
         self.initsize = initsize
         self._freepool = set()
         self.init(initsize)
-        self.timed_task()
+        self.create_timed_task()
 
     def init(self, size: int) -> None:
         """初始化 Socket 池"""
         for _ in range(size):
             asyncio.get_event_loop().create_task(self._create())
 
-    def timed_task(self) -> None:
+    def create_timed_task(self) -> None:
         """定时清理池中的 Socket"""
 
-        async def _timed_task() -> None:
+        async def timed_task() -> None:
             while True:
                 await asyncio.sleep(7)
 
@@ -65,9 +113,9 @@ class Pool:
                     sock = self._freepool.pop()
                     await sock.close()
 
-        asyncio.get_event_loop().create_task(_timed_task())
+        asyncio.get_event_loop().create_task(timed_task())
 
-    async def acquire(self) -> websockets.WebSocketClientProtocol:
+    async def acquire(self) -> WebSocketClientProtocol:
         while True:
             try:
                 sock = self._freepool.pop()
@@ -79,278 +127,126 @@ class Pool:
             except KeyError:
                 await self._create()
 
-    async def release(self, sock: websockets.WebSocketClientProtocol) -> None:
+    async def release(self, sock: WebSocketClientProtocol) -> None:
         if isinstance(sock, websockets.WebSocketClientProtocol):
             if sock.closed:
                 return
             self._freepool.add(sock)
 
-    def get_credentials(self) -> str:
-        return "Basic " + base64.b64encode(
-            f"{self.username}:{self.password}".encode("utf8")
-        ).decode("utf8")
-
-    async def _create(self):
+    async def _create(self) -> None:
         sock = await websockets.connect(
             self.server, extra_headers={"Authorization": self.get_credentials()}
         )
         self._freepool.add(sock)
 
 
-class Socks5Error(Exception):
-    pass
+class Pools(metaclass=Singleton):
+    def __init__(self, pools: typing.Sequence[Pool]) -> None:
+        self.__pools = list(pools)
+
+    def add(self, pool: Pool) -> None:
+        self.__pools.append(pool)
+
+    def all(self) -> typing.List[Pool]:
+        return self.__pools
+
+    def random(self) -> Pool:
+        return random.choice(self.__pools)
 
 
-class AuthenticationError(Socks5Error):
-    pass
+class WebSocket(Socket):
+    def __init__(self, sock: WebSocketClientProtocol, pool: Pool):
+        self.pool = pool
+        self.sock = sock
+        self.status = "OPEN"
 
+    @classmethod
+    def create_connection(self) -> WebSocket:
+        pool = Pools().random()
+        _websocket = await pool.acquire()
+        return WebSocket(_websocket, pool)
 
-# Empty byte
-EMPTY = b""
-# Response Type
-SUCCEEDED = 0
-GENERAL_SOCKS_SERVER_FAILURE = 1
-CONNECTION_NOT_ALLOWED_BY_RULESET = 2
-NETWORK_UNREACHABLE = 3
-HOST_UNREACHABLE = 4
-CONNECTION_REFUSED = 5
-TTL_EXPIRED = 6
-COMMAND_NOT_SUPPORTED = 7
-ADDRESS_TYPE_NOT_SUPPORTED = 8
-
-
-class BaseAuthentication:
-    def __init__(self, socket: TCPSocket):
-        self.socket = socket
-
-    def getMethod(self, methods: set) -> int:
-        """
-        Return a allowed authentication method or 255
-        Must be overwrited.
-        """
-        return 255
-
-    async def authenticate(self):
-        """
-        Authenticate user
-        Must be overwrited.
-        """
-        raise AuthenticationError()
-
-
-class NoAuthentication(BaseAuthentication):
-    """ NO AUTHENTICATION REQUIRED """
-
-    def getMethod(self, methods: set) -> int:
-        if 0 in methods:
-            return 0
-        return 255
-
-    async def authenticate(self):
-        pass
-
-
-class PasswordAuthentication(BaseAuthentication):
-    """ USERNAME/PASSWORD """
-
-    def _getUser(self) -> dict:
-        return {"abersheeran": "password"}
-
-    def getMethod(self, methods: set) -> int:
-        if 2 in methods:
-            return 2
-        return 255
-
-    async def authenticate(self):
-        VER = await self.socket.recv(1)
-        if VER != b"\x01":
-            await self.socket.send(b"\x01\x01")
-            raise Socks5Error("Unsupported version!")
-        ULEN = int.from_bytes(await self.socket.recv(1), "big")
-        UNAME = (await self.socket.recv(ULEN)).decode("ASCII")
-        PLEN = int.from_bytes(await self.socket.recv(1), "big")
-        PASSWD = (await self.socket.recv(PLEN)).decode("ASCII")
-        if self._getUser().get(UNAME) and self._getUser().get(UNAME) == PASSWD:
-            await self.socket.send(b"\x01\x00")
-        else:
-            await self.socket.send(b"\x01\x01")
-            raise AuthenticationError("USERNAME or PASSWORD ERROR")
-
-
-def socks5_reply(REP: int, IP: str = "127.0.0.1", port: int = 1080) -> bytes:
-    """构造 socks5 服务响应"""
-    VER, RSV = b"\x05", b"\x00"
-    try:
-        BND_ADDR = inet_aton(IP)
-        ATYP = 1
-    except OSError:
+    async def recv(self, num: int = -1) -> bytes:
         try:
-            BND_ADDR = inet_pton(AF_INET6, IP)
-            ATYP = 4
-        except OSError:
-            BND_ADDR = len(IP).to_bytes(2, "big") + IP.encode("UTF-8")
-            ATYP = 3
-    REP = REP.to_bytes(1, "big")
-    ATYP = ATYP.to_bytes(1, "big")
-    BND_PORT = int(port).to_bytes(2, "big")
-    return VER + REP + RSV + ATYP + BND_ADDR + BND_PORT
+            data = await self.sock.recv()
+        except websockets.exceptions.ConnectionClosed:
+            self.status = "CLOSED"
+            raise ConnectionResetError("Connection closed.")
+        logger.debug(f"<<< {data}")
+        if isinstance(data, str):  # websocks
+            _data = json.loads(data)
+            if _data.get("STATUS") == "CLOSED":
+                self.status = "CLOSED"
+                raise WebsocksClosed("websocks closed.")
+        return data
 
-
-class Socks5Server:
-    """A socks5 server"""
-
-    Authentication = NoAuthentication
-
-    def __init__(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 3128,
-        policy: str = "AUTO",
-        server: str = None,
-    ) -> None:
-        assert server is not None
-
-        self.host = host
-        self.port = port
-        self.policy = policy
-        self.pool = Pool(server)
-
-    async def dispatch(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
-        sock = TCPSocket(reader, writer)
-        authentication = self.Authentication(sock)
+    async def send(self, data: bytes) -> int:
         try:
-            data = await sock.recv(2)
-            VER, NMETHODS = data
-            if VER != 5:
-                await sock.send(b"\x05\xff")
-                raise Socks5Error("Unsupported version!")
-            METHODS = set(await sock.recv(NMETHODS))
-            METHOD = authentication.getMethod(METHODS)
-            reply = b"\x05" + METHOD.to_bytes(1, "big")
-            await sock.send(reply)
-            if METHOD == 255:
-                raise Socks5Error("No methods available")
-            await authentication.authenticate()
-            data = await sock.recv(4)
-            VER, CMD, RSV, ATYP = data
-            if VER != 5:
-                await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE))
-                raise Socks5Error("Unsupported version!")
-            # Parse target address
-            if ATYP == 1:  # IPV4
-                ipv4 = await sock.recv(4)
-                DST_ADDR = inet_ntoa(ipv4)
-            elif ATYP == 3:  # Domain
-                addr_len = int.from_bytes(await sock.recv(1), byteorder="big")
-                DST_ADDR = (await sock.recv(addr_len)).decode()
-            elif ATYP == 4:  # IPV6
-                ipv6 = await sock.recv(16)
-                DST_ADDR = inet_ntop(AF_INET6, ipv6)
-            else:
-                await sock.send(socks5_reply(ADDRESS_TYPE_NOT_SUPPORTED))
-                raise Socks5Error(f"Unsupported ATYP value: {ATYP}")
-            DST_PORT = int.from_bytes(await sock.recv(2), "big")
-            if CMD == 1:
-                await self.socks5_connect(sock, DST_ADDR, DST_PORT)
-            elif CMD == 2:
-                await self.socks5_bind(sock, DST_ADDR, DST_PORT)
-            elif CMD == 3:
-                await self.socks5_udp_associate(sock, DST_ADDR, DST_PORT)
-            else:
-                await sock.send(socks5_reply(COMMAND_NOT_SUPPORTED))
-                raise Socks5Error(f"Unsupported CMD value: {CMD}")
-        except Socks5Error as e:
-            logger.warning(str(e))
-        except (ConnectionResetError, ConnectionAbortedError):
-            logger.error(f"Unknown Error: ")
-            traceback.print_exc()
-        finally:
-            await sock.close()
+            await self.sock.send(data)
+        except websockets.exceptions.ConnectionClosed:
+            self.status = "CLOSED"
+            raise ConnectionResetError("Connection closed.")
+        logger.debug(f">>> {data}")
+        return len(data)
 
-    async def socks5_connect(self, sock: TCPSocket, addr: str, port: int):
+    async def close(self) -> None:
         try:
-            start_time = time.time()
-            need_proxy = rule.judge(addr)
-            if need_proxy or self.policy == "PROXY":
-                _remote = await self.pool.acquire()
-                remote = await connect_server(_remote, addr, port)
-                remote_type = PROXY
-            elif need_proxy is None and self.policy == "AUTO":
-                try:
-                    remote = await asyncio.wait_for(
-                        create_connection(addr, port), timeout=2.3
-                    )
-                    remote_type = DIRECT
-                except (
-                    asyncio.TimeoutError,
-                    socket.gaierror,
-                    ConnectionError,
-                    TimeoutError,
-                ):
-                    try:
-                        _remote = await self.pool.acquire()
-                        remote = await connect_server(_remote, addr, port)
-                    except websockets.exceptions.ConnectionClosed:
-                        _remote = await self.pool.acquire()
-                        remote = await connect_server(_remote, addr, port)
-                    remote_type = PROXY
-                    rule.add(addr)
-            else:
-                remote = await create_connection(addr, port)
+            await self.sock.send(json.dumps({"STATUS": "CLOSED"}))
+        except websockets.exceptions.ConnectionClosed:
+            return
+
+        try:  # websocks close
+            while not self.closed:
+                _ = await self.recv()
+        except ConnectionResetError:
+            pass
+
+        await self.pool.release(self.sock)
+
+    @property
+    def closed(self) -> bool:
+        return self.status == "CLOSED" or self.sock.closed
+
+
+class ConnectSession(_ConnectSession):
+    async def connect_remote(self, host: str, port: int) -> Socket:
+        """
+        connect remote and return Socket
+        """
+        start_time = time.time()
+        need_proxy = rule.judge(addr)
+        if need_proxy or self.policy == "PROXY":
+            _remote = await self.pool.acquire()
+            remote = await connect_server(_remote, addr, port)
+            remote_type = PROXY
+        elif need_proxy is None and self.policy == "AUTO":
+            try:
+                remote = await asyncio.wait_for(
+                    create_connection(addr, port), timeout=2.3
+                )
                 remote_type = DIRECT
-            end_time = time.time()
-
-            logger.info(f"{end_time - start_time:02.3f} {remote_type}: {addr}:{port}")
-
-            await sock.send(socks5_reply(SUCCEEDED))
-        except WebsocksRefused:
-            await sock.send(socks5_reply(CONNECTION_REFUSED))
-            logger.error(f"Proxy Refused: {addr}:{port}")
-        except socket.gaierror:
-            await sock.send(socks5_reply(CONNECTION_REFUSED))
-            logger.error(f"Network error: Can't connect to {addr}:{port}")
-        except Exception:
-            await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
-            logger.error(f"Unknown Error: ")
-            traceback.print_exc()
+            except (
+                OSError,
+                ConnectionError,
+                asyncio.TimeoutError,
+            ):
+                try:
+                    _remote = await self.pool.acquire()
+                    remote = await connect_server(_remote, addr, port)
+                except websockets.exceptions.ConnectionClosed:
+                    _remote = await self.pool.acquire()
+                    remote = await connect_server(_remote, addr, port)
+                remote_type = PROXY
+                rule.add(addr)
         else:
-            # forward data
-            await bridge(sock, remote)
+            remote = await create_connection(addr, port)
+            remote_type = DIRECT
 
-            if remote_type == PROXY:
-                await self.pool.release(remote.sock)
-            elif remote_type == DIRECT:
-                await remote.close()
+        end_time = time.time()
+        logger.info(f"{end_time - start_time:02.3f} {remote_type}: {addr}:{port}")
 
-    async def socks5_bind(self, sock: TCPSocket, addr: str, port: int):
-        """ 不支持 bind """
-        await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
 
-    async def socks5_udp_associate(self, sock: TCPSocket, addr: str, port: int):
-        """ 不支持 UDP """
-        await sock.send(socks5_reply(GENERAL_SOCKS_SERVER_FAILURE, addr, port))
-
-    async def run_server(self) -> typing.NoReturn:
-        server = await asyncio.start_server(self.dispatch, self.host, self.port)
-        logger.info(f"Socks5 Server serving on {server.sockets[0].getsockname()}")
-
-        def termina(signo, frame):
-            logger.info(f"Socks5 Server has closed.")
-            raise SystemExit(0)
-
-        signal.signal(signal.SIGINT, termina)
-        signal.signal(signal.SIGTERM, termina)
-
-        while True:
-            await asyncio.sleep(1)
-
-    def run(self) -> None:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.run_server())
-        loop.stop()
-
+Client = partial(Socks5, connect_session_class=ConnectSession)
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -358,4 +254,4 @@ if __name__ == "__main__":
         format="[%(asctime)s] [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    Socks5Server().run()
+    Client().run()
