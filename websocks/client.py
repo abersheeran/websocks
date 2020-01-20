@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import json
 import base64
 import socket
 import signal
@@ -15,8 +16,8 @@ import websockets
 from websockets import WebSocketClientProtocol
 from socks5.server.core import ConnectSession as _ConnectSession, Socks5
 from socks5.utils import judge_atyp
-from socks5.types import Socket
 
+from .types import Socket
 from .utils import Singleton, onlyfirst
 from . import rule
 
@@ -65,7 +66,7 @@ def get_policy() -> str:
 class ServerURL:
     def __init__(self, server_url: str) -> None:
         url_format = re.compile(
-            r"(?P<protocol>(ws|wss))://(?P<username>.+?):(?P<password>.+?)@(?P<uri>.+?)"
+            r"(?P<protocol>(ws|wss))://(?P<username>.+?):(?P<password>.+?)@(?P<uri>.+)"
         )
         match = url_format.match(server_url)
         self.protocol = match.group("protocol")
@@ -161,10 +162,25 @@ class WebSocket(Socket):
         self.status = "OPEN"
 
     @classmethod
-    def create_connection(self) -> WebSocket:
+    async def create_connection(cls, host: str, port: int) -> "WebSocket":
         pool = Pools().random()
-        _websocket = await pool.acquire()
-        return WebSocket(_websocket, pool)
+        sock = await pool.acquire()
+        # websocks shake hand
+        await sock.send(json.dumps({"HOST": host, "PORT": port}))
+        resp = await sock.recv()
+        try:
+            assert isinstance(resp, str), "must be str"
+            if not json.loads(resp)["ALLOW"]:
+                await sock.send(json.dumps({"STATUS": "CLOSED"}))
+                while True:
+                    msg = await sock.recv()
+                    if isinstance(msg, str):
+                        break
+                raise WebsocksRefused(f"Websocks server can't connect {host}:{port}")
+        except (AssertionError, KeyError):
+            raise WebsocksImplementationError()
+
+        return WebSocket(sock, pool)
 
     async def recv(self, num: int = -1) -> bytes:
         try:
@@ -208,50 +224,83 @@ class WebSocket(Socket):
         return self.status == "CLOSED" or self.sock.closed
 
 
+class TCPSocket(Socket):
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        self.r = reader
+        self.w = writer
+
+    @classmethod
+    async def create_connection(cls, host: str, port: int) -> "TCPSocket":
+        """create a TCP socket"""
+        r, w = await asyncio.open_connection(host=host, port=port)
+        return TCPSocket(r, w)
+
+    async def recv(self, num: int = 4096) -> bytes:
+        data = await self.r.read(num)
+        logger.debug(f"<<< {data}")
+        return data
+
+    async def send(self, data: bytes) -> int:
+        self.w.write(data)
+        await self.w.drain()
+        logger.debug(f">>> {data}")
+        return len(data)
+
+    async def close(self) -> None:
+        self.w.close()
+
+    @property
+    def closed(self) -> bool:
+        return self.w.is_closing()
+
+
 class ConnectSession(_ConnectSession):
     async def connect_remote(self, host: str, port: int) -> Socket:
         """
         connect remote and return Socket
         """
         start_time = time.time()
-        need_proxy = rule.judge(addr)
-        if need_proxy or self.policy == "PROXY":
-            _remote = await self.pool.acquire()
-            remote = await connect_server(_remote, addr, port)
-            remote_type = PROXY
-        elif need_proxy is None and self.policy == "AUTO":
+
+        need_proxy = rule.judge(host)
+        if need_proxy or get_policy() == "PROXY":
+            remote = await WebSocket.create_connection(host, port)
+        elif need_proxy is None and get_policy() == "AUTO":
             try:
                 remote = await asyncio.wait_for(
-                    create_connection(addr, port), timeout=2.3
+                    TCPSocket.create_connection(host, port), timeout=2.3
                 )
-                remote_type = DIRECT
-            except (
-                OSError,
-                ConnectionError,
-                asyncio.TimeoutError,
-            ):
-                try:
-                    _remote = await self.pool.acquire()
-                    remote = await connect_server(_remote, addr, port)
-                except websockets.exceptions.ConnectionClosed:
-                    _remote = await self.pool.acquire()
-                    remote = await connect_server(_remote, addr, port)
-                remote_type = PROXY
-                rule.add(addr)
+            except (OSError, asyncio.TimeoutError):
+                remote = await WebSocket.create_connection(host, port)
+                rule.add(host)
         else:
-            remote = await create_connection(addr, port)
-            remote_type = DIRECT
+            remote = await TCPSocket.create_connection(host, port)
 
         end_time = time.time()
-        logger.info(f"{end_time - start_time:02.3f} {remote_type}: {addr}:{port}")
+        logger.info(
+            f"{end_time - start_time:02.3f} {'Proxy' if not isinstance(remote, TCPSocket) else 'Direct'}: {host}:{port}"
+        )
+
+        return remote
 
 
-Client = partial(Socks5, connect_session_class=ConnectSession)
+class Client(Socks5):
+    def __init__(self, host: str = "0.0.0.0", port: int = 1080) -> None:
+        super().__init__(host=host, port=port, connect_session_class=ConnectSession)
+        logging.getLogger("Socks5").setLevel(logging.WARNING)
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[%(asctime)s] [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    Client().run()
+    async def run_forever(self) -> None:
+        """
+        run server forever
+        """
+        server = await self.start()
+        logger.info(f"Socks5 Server serving on {server.sockets[0].getsockname()}")
+
+        def termina(signo, frame):
+            server.close()
+            logger.info(f"Socks5 Server has closed.")
+
+        signal.signal(signal.SIGINT, termina)
+        signal.signal(signal.SIGTERM, termina)
+
+        while server.is_serving():
+            await asyncio.sleep(1)

@@ -30,12 +30,16 @@ def client(policy: str, rulefile: str, server: str, address: typing.Tuple[str, i
         else:
             raise FileNotFoundError(rulefile)
 
-    from .client import Socks5Server
+    from .client import Client, set_policy, Pools, Pool
+
+    set_policy(policy)
 
     if not server.startswith("ws://") and not server.startswith("wss://"):
         server = "wss://" + server
 
-    Socks5Server(address[0], address[1], policy=policy, server=server).run()
+    Pools([Pool(server)])
+
+    Client(address[0], address[1]).run()
 
 
 @main.command()
