@@ -11,12 +11,54 @@ from websockets import WebSocketServerProtocol
 from websockets.server import HTTPResponse
 from websockets.http import Headers
 
-from ._websocks import create_connection, WebSocket, bridge
+from .types import Socket
+from .utils import onlyfirst
 
 logger: logging.Logger = logging.getLogger("websocks")
 
 
-class WebsocksServer:
+class TCPSocket(Socket):
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        self.r = reader
+        self.w = writer
+
+    async def recv(self, num: int = 4096) -> bytes:
+        data = await self.r.read(num)
+        logger.debug(f"<<< {data}")
+        return data
+
+    async def send(self, data: bytes) -> int:
+        self.w.write(data)
+        await self.w.drain()
+        logger.debug(f">>> {data}")
+        return len(data)
+
+    def close(self) -> None:
+        self.w.close()
+
+    @property
+    def closed(self) -> bool:
+        return self.w.is_closing()
+
+
+async def create_connection(host: str, port: int) -> TCPSocket:
+    """create a TCP socket"""
+    r, w = await asyncio.open_connection(host=host, port=port)
+    return TCPSocket(r, w)
+
+
+async def bridge(alice: Socket, bob: Socket) -> None:
+    async def _bridge(sender: Socket, receiver: Socket) -> None:
+        while True:
+            data = await sender.recv()
+            if not data:
+                return
+            await receiver.send(data)
+
+    await onlyfirst(_bridge(alice, bob), _bridge(bob, alice))
+
+
+class Server:
     def __init__(
         self,
         userlist: typing.Dict[str, str],
@@ -38,13 +80,22 @@ class WebsocksServer:
                 try:
                     remote = await create_connection(request["HOST"], request["PORT"])
                     await sock.send(json.dumps({"ALLOW": True}))
-                except (ConnectionRefusedError, asyncio.TimeoutError, TimeoutError):
+                except (OSError, asyncio.TimeoutError):
                     await sock.send(json.dumps({"ALLOW": False}))
-                    continue
-                await bridge(WebSocket(sock), remote)
-                # 清理连接
-                if not remote.closed:
-                    await remote.close()
+                else:
+                    await bridge(sock, remote)
+
+                    if not remote.closed:
+                        remote.close()
+                    if sock.closed:
+                        raise websockets.exceptions.ConnectionClosed(sock.close_code)
+
+                await sock.send(json.dumps({"STATUS": "CLOSED"}))
+                while True:
+                    msg = await sock.recv()
+                    if isinstance(msg, str):
+                        break
+
         except (AssertionError, KeyError):
             await sock.close()
         except websockets.exceptions.ConnectionClosed:
@@ -91,4 +142,4 @@ if __name__ == "__main__":
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    WebsocksServer().run()
+    Server().run()

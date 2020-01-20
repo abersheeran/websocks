@@ -52,9 +52,9 @@ def download(list: typing.List[str]):
 )
 @click.argument("address", type=click.Tuple([str, int]), default=("0.0.0.0", 8765))
 def server(address: typing.Tuple[str, int], userpass: typing.List[str]):
-    from .server import WebsocksServer
+    from .server import Server
 
-    WebsocksServer(
+    Server(
         {_userpass.split(":")[0]: _userpass.split(":")[1] for _userpass in userpass},
         host=address[0],
         port=address[1],
