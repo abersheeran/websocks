@@ -1,8 +1,6 @@
-import logging
-from typing import Set, Tuple, Dict, Any
-from asyncio import Future, Task, CancelledError
-
-logger: logging.Logger = logging.getLogger("websocks")
+import asyncio
+from asyncio import Task, Future, CancelledError
+from typing import Tuple, Dict, Any, Set, Awaitable
 
 
 class Singleton(type):
@@ -18,23 +16,25 @@ class Singleton(type):
         return cls.instance
 
 
-def onlyfirst(*coros, loop=None):
+def onlyfirst(*coros, loop=None) -> Awaitable[Any]:
     """
-    并发执行多个 coroutine, 仅返回第一个执行完成的结果
+    Execute multiple coroutines concurrently, returning only the results of the first execution.
 
-    当有一个完成时, 将取消其他 coroutine 的执行
+    When one is completed, the execution of other coroutines will be canceled.
     """
     loop = loop or asyncio.get_running_loop()
     tasks: Set[Task] = set()
     finished, result, _future = 0, loop.create_future(), None
 
     def _done_callback(fut: Future) -> None:
+        nonlocal finished, result, _future
+
         try:
             fut.result()  # try raise exception
         except CancelledError:
             fut.cancel()
-
-        nonlocal finished, result, _future
+        except Exception as e:
+            result.set_exception(e)
 
         finished += 1
 
@@ -46,7 +46,7 @@ def onlyfirst(*coros, loop=None):
                 continue
             task.cancel()
 
-        if finished == len(tasks):
+        if finished == len(tasks) and not result.done():
             result.set_result(_future.result())
 
     for coro in coros:
