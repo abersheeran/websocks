@@ -83,12 +83,17 @@ class Server:
                 except (OSError, asyncio.TimeoutError):
                     await sock.send(json.dumps({"ALLOW": False}))
                 else:
-                    await bridge(sock, remote)
-
-                    if not remote.closed:
-                        remote.close()
-                    if sock.closed:
-                        raise websockets.exceptions.ConnectionClosed(sock.close_code)
+                    try:
+                        await bridge(sock, remote)
+                    except TypeError:  # websocks closed
+                        continue
+                    finally:
+                        if not remote.closed:
+                            remote.close()
+                        if sock.closed:
+                            raise websockets.exceptions.ConnectionClosed(
+                                sock.close_code
+                            )
 
                 await sock.send(json.dumps({"STATUS": "CLOSED"}))
                 while True:
