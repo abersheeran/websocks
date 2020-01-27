@@ -29,7 +29,7 @@ description = "Socks5 Server/Client by asyncio."
 name = "asyncio-socks5"
 optional = false
 python-versions = ">=3.6,<4.0"
-version = "0.1.2"
+version = "0.1.3"
 
 [[package]]
 category = "dev"
@@ -318,7 +318,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pathlib2", "contextlib2", "unittest2"]
 
 [metadata]
-content-hash = "7c768ea927a02be371c50adf0a40ed90f6d31acd2a7b196c5bb9cc6dda4fab27"
+content-hash = "9811c812bc8925418d3bc2d286d110f868efbc8b19fdcaeca45ea5e893da116d"
 python-versions = "^3.6.1"
 
 [metadata.files]
@@ -331,8 +331,8 @@ astroid = [
     {file = "astroid-2.3.3.tar.gz", hash = "sha256:71ea07f44df9568a75d0f354c49143a4575d90645e9fead6dfb52c26a85ed13a"},
 ]
 asyncio-socks5 = [
-    {file = "asyncio-socks5-0.1.2.tar.gz", hash = "sha256:4912e8909b895b139892828045a8d8787bc33d12fc5594b4b8be74514efefae6"},
-    {file = "asyncio_socks5-0.1.2-py3-none-any.whl", hash = "sha256:1887b314d51b75a647855db4fe3373d9e194631f91176390247894cf01172ee9"},
+    {file = "asyncio-socks5-0.1.3.tar.gz", hash = "sha256:22a5876905323ffbc144f47199f7379d95de30f9f800a38e55810771eadcbea1"},
+    {file = "asyncio_socks5-0.1.3-py3-none-any.whl", hash = "sha256:3aff842126851708eb3ed0d609a91bc4b8b1194bfa6ca2a756b3566ccbac8e4a"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.3.0-py2.py3-none-any.whl", hash = "sha256:03472c30eb2c5d1ba9227e4c2ca66ab8287fbfbbda3888aa93dc2e28fc6811b4"},

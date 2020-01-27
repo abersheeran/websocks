@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "websocks"
-version = "0.2.0"
+version = "0.2.1"
 description = "A websocket-based socks5 proxy."
 readme = "README.md"
 authors = ["abersheeran <me@abersheeran.com>"]
@@ -27,7 +27,7 @@ websocks =  'websocks.commands:main'
 python = "^3.6.1"
 websockets = "^8.1"
 click = "^7.0"
-asyncio-socks5 = "^0.1.2"
+asyncio-socks5 = "^0.1.3"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.4.4"
