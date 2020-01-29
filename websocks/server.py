@@ -90,7 +90,7 @@ class Server:
                         continue
                     finally:
                         if not remote.closed:
-                            remote.close()
+                            await remote.close()
                         if sock.closed:
                             raise websockets.exceptions.ConnectionClosed(
                                 sock.close_code
