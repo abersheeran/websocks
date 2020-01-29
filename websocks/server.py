@@ -40,6 +40,8 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
+        if self.w.is_closing():
+            return
         self.w.close()
         await self.w.wait_closed()
 
@@ -79,7 +81,9 @@ class Server:
                 assert isinstance(data, str)
                 request = json.loads(data)
                 try:
-                    remote = await TCPSocket.create_connection(request["HOST"], request["PORT"])
+                    remote = await TCPSocket.create_connection(
+                        request["HOST"], request["PORT"]
+                    )
                     await sock.send(json.dumps({"ALLOW": True}))
                 except (OSError, asyncio.TimeoutError):
                     await sock.send(json.dumps({"ALLOW": False}))
@@ -93,7 +97,7 @@ class Server:
                             await remote.close()
                         if sock.closed:
                             raise websockets.exceptions.ConnectionClosed(
-                                sock.close_code
+                                sock.close_code, sock.reason
                             )
 
                 await sock.send(json.dumps({"STATUS": "CLOSED"}))

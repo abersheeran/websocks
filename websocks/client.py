@@ -247,6 +247,8 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
+        if self.w.is_closing():
+            return
         self.w.close()
         await self.w.wait_closed()
 
