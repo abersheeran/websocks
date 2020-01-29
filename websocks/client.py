@@ -248,6 +248,7 @@ class TCPSocket(Socket):
 
     async def close(self) -> None:
         self.w.close()
+        await self.w.wait_closed()
 
     @property
     def closed(self) -> bool:
