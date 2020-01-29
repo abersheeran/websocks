@@ -22,6 +22,12 @@ class TCPSocket(Socket):
         self.r = reader
         self.w = writer
 
+    @classmethod
+    async def create_connection(cls, host: str, port: int) -> "TCPSocket":
+        """create a TCP socket"""
+        r, w = await asyncio.open_connection(host=host, port=port)
+        return TCPSocket(r, w)
+
     async def recv(self, num: int = 4096) -> bytes:
         data = await self.r.read(num)
         logger.debug(f"<<< {data}")
@@ -33,18 +39,13 @@ class TCPSocket(Socket):
         logger.debug(f">>> {data}")
         return len(data)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         self.w.close()
+        await self.w.wait_closed()
 
     @property
     def closed(self) -> bool:
         return self.w.is_closing()
-
-
-async def create_connection(host: str, port: int) -> TCPSocket:
-    """create a TCP socket"""
-    r, w = await asyncio.open_connection(host=host, port=port)
-    return TCPSocket(r, w)
 
 
 async def bridge(alice: Socket, bob: Socket) -> None:
@@ -78,7 +79,7 @@ class Server:
                 assert isinstance(data, str)
                 request = json.loads(data)
                 try:
-                    remote = await create_connection(request["HOST"], request["PORT"])
+                    remote = await TCPSocket.create_connection(request["HOST"], request["PORT"])
                     await sock.send(json.dumps({"ALLOW": True}))
                 except (OSError, asyncio.TimeoutError):
                     await sock.send(json.dumps({"ALLOW": False}))
