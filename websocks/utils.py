@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import Task, Future, CancelledError
+from asyncio import Task, Future
 from typing import Tuple, Dict, Any, Set, Awaitable
 
 
@@ -16,7 +16,7 @@ class Singleton(type):
         return cls.instance
 
 
-def onlyfirst(*coros, loop=None) -> Awaitable[Any]:
+def onlyfirst(*coros, loop=None) -> Future:
     """
     Execute multiple coroutines concurrently, returning only the results of the first execution.
 
@@ -29,29 +29,36 @@ def onlyfirst(*coros, loop=None) -> Awaitable[Any]:
     def _done_callback(fut: Future) -> None:
         nonlocal finished, result, _future
 
+        if result.cancelled():
+            return  # nothing to do on cancelled
+
         try:
             fut.result()  # try raise exception
-        except CancelledError:
-            fut.cancel()
-        except Exception as e:
-            result.set_exception(e)
+        except Exception:
+            pass
 
         finished += 1
 
         if _future is None:
             _future = fut
 
-        for task in tasks:
-            if task.done() or task.cancelled():
-                continue
-            task.cancel()
+        map(lambda task: task.cancel(), filter(lambda task: not task.done(), tasks))
 
-        if finished == len(tasks) and not result.done():
-            result.set_result(_future.result())
+        if finished == len(tasks):
+            try:
+                result.set_result(_future.result())
+            except Exception:
+                result.set_exception(_future.exception())
 
     for coro in coros:
         task = loop.create_task(coro)
         task.add_done_callback(_done_callback)
         tasks.add(task)
+
+    result.add_done_callback(
+        lambda fut: map(
+            lambda task: task.cancel(), filter(lambda task: not task.done(), tasks)
+        )
+    )
 
     return result
