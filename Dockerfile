@@ -4,6 +4,9 @@ WORKDIR /app
 
 COPY . /app
 
+# dephell need pip < 20
+RUN python3 -m pip install pip<20
+
 RUN pip3 install dephell[full]
 RUN dephell deps convert --to=setup.py --from=pyproject.toml
 
