@@ -27,7 +27,7 @@ websocks =  'websocks.commands:main'
 python = "^3.6.1"
 websockets = "^8.1"
 click = "^7.0"
-asyncio-socks5 = "^0.1.4"
+asyncio-socks5 = "^0.1.5"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.4.4"
