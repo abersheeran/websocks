@@ -6,10 +6,10 @@ if sys.platform == "win32":  # use IOCP in windows
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     else:
         asyncio.set_event_loop(asyncio.ProactorEventLoop())
-else:  # try to use uvloop
-    try:
-        import uvloop
 
-        uvloop.install()
-    except ImportError:
-        pass
+try:
+    import uvloop
+
+    uvloop.install()
+except ImportError:
+    pass
