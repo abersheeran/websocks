@@ -14,7 +14,8 @@ from functools import partial
 
 import websockets
 from websockets import WebSocketClientProtocol
-from socks5.server.core import ConnectSession as _ConnectSession, Socks5
+from socks5.server.sessions import ConnectSession as _ConnectSession
+from socks5.server.core import Socks5
 from socks5.utils import judge_atyp
 
 from .types import Socket
@@ -114,7 +115,8 @@ class Pool:
                     sock = self._freepool.pop()
                     await sock.close()
 
-        asyncio.get_event_loop().create_task(timed_task())
+        _task = asyncio.get_event_loop().create_task(timed_task())
+        _task.add_done_callback(lambda task: self.create_timed_task())
 
     async def acquire(self) -> WebSocketClientProtocol:
         while True:
@@ -206,6 +208,9 @@ class WebSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
+        if self.closed:
+            return
+
         try:
             await self.sock.send(json.dumps({"STATUS": "CLOSED"}))
         except websockets.exceptions.ConnectionClosed:
@@ -247,6 +252,8 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
+        if self.w.is_closing():
+            return
         self.w.close()
         await self.w.wait_closed()
 

@@ -10,7 +10,7 @@ if sys.platform == "win32":  # use IOCP in windows
     loop = asyncio.get_event_loop()
 
     def exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
-        if isinstance(context.get("exception"), ConnectionResetError):
+        if isinstance(context.get("exception"), OSError):
             # Override the default handler's handling of this
             return  # nothing to do
         return loop.default_exception_handler(context)
