@@ -42,6 +42,8 @@ class TCPSocket(Socket):
     async def close(self) -> None:
         if self.w.is_closing():
             return
+        while await self.r.read(4096):
+            pass  # just try
         self.w.close()
         await self.w.wait_closed()
 
