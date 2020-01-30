@@ -247,8 +247,6 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
-        if self.w.is_closing():
-            return
         self.w.close()
         await self.w.wait_closed()
 
@@ -289,21 +287,3 @@ class ConnectSession(_ConnectSession):
 class Client(Socks5):
     def __init__(self, host: str = "0.0.0.0", port: int = 1080) -> None:
         super().__init__(host=host, port=port, connect_session_class=ConnectSession)
-        logging.getLogger("Socks5").setLevel(logging.WARNING)
-
-    async def run_forever(self) -> None:
-        """
-        run server forever
-        """
-        server = await self.start()
-        logger.info(f"Socks5 Server serving on {server.sockets[0].getsockname()}")
-
-        def termina(signo, frame):
-            server.close()
-            logger.info(f"Socks5 Server has closed.")
-
-        signal.signal(signal.SIGINT, termina)
-        signal.signal(signal.SIGTERM, termina)
-
-        while server.is_serving():
-            await asyncio.sleep(1)

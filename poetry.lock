@@ -29,7 +29,7 @@ description = "Socks5 Server/Client by asyncio."
 name = "asyncio-socks5"
 optional = false
 python-versions = ">=3.6,<4.0"
-version = "0.1.5"
+version = "0.1.7"
 
 [[package]]
 category = "dev"
@@ -225,7 +225,7 @@ description = "pytest: simple powerful testing with Python"
 name = "pytest"
 optional = false
 python-versions = ">=3.5"
-version = "5.3.4"
+version = "5.3.5"
 
 [package.dependencies]
 atomicwrites = ">=1.0"
@@ -315,7 +315,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools"]
 
 [metadata]
-content-hash = "96c129c20f7081d7ab0b3f3abc645df71530044741228ecd4f580daff211dc2d"
+content-hash = "cdf0b5361e5fd5239599b01c4541a992e92ae378ecec9aea58e14a8969a8723a"
 python-versions = "^3.6.1"
 
 [metadata.files]
@@ -328,8 +328,8 @@ astroid = [
     {file = "astroid-2.3.3.tar.gz", hash = "sha256:71ea07f44df9568a75d0f354c49143a4575d90645e9fead6dfb52c26a85ed13a"},
 ]
 asyncio-socks5 = [
-    {file = "asyncio-socks5-0.1.5.tar.gz", hash = "sha256:0c883cfc7e28306a1694c6ee5312bf61f910f2f164ce840e012509e05709501f"},
-    {file = "asyncio_socks5-0.1.5-py3-none-any.whl", hash = "sha256:d506d77345abadb94d7e5c8f6869ec286de2487e48613b84db95bee9777eb10e"},
+    {file = "asyncio-socks5-0.1.7.tar.gz", hash = "sha256:119d75aeb31be91b2ba9ca22650e1709463697837cdb13e9b24a238c42bd8dd4"},
+    {file = "asyncio_socks5-0.1.7-py3-none-any.whl", hash = "sha256:95d49303d8c96c8f8951f58feb2f8fd69948ceec641fb98186f5949918826990"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.3.0-py2.py3-none-any.whl", hash = "sha256:03472c30eb2c5d1ba9227e4c2ca66ab8287fbfbbda3888aa93dc2e28fc6811b4"},
@@ -420,8 +420,8 @@ pysocks = [
     {file = "PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0"},
 ]
 pytest = [
-    {file = "pytest-5.3.4-py3-none-any.whl", hash = "sha256:c13d1943c63e599b98cf118fcb9703e4d7bde7caa9a432567bcdcae4bf512d20"},
-    {file = "pytest-5.3.4.tar.gz", hash = "sha256:1d122e8be54d1a709e56f82e2d85dcba3018313d64647f38a91aec88c239b600"},
+    {file = "pytest-5.3.5-py3-none-any.whl", hash = "sha256:ff615c761e25eb25df19edddc0b970302d2a9091fbce0e7213298d85fb61fef6"},
+    {file = "pytest-5.3.5.tar.gz", hash = "sha256:0d5fe9189a148acc3c3eb2ac8e1ac0742cb7618c084f3d228baaec0c254b318d"},
 ]
 regex = [
     {file = "regex-2020.1.8-cp27-cp27m-win32.whl", hash = "sha256:4e8f02d3d72ca94efc8396f8036c0d3bcc812aefc28ec70f35bb888c74a25161"},
