@@ -97,7 +97,7 @@ class Server:
                             await remote.close()
                         if sock.closed:
                             raise websockets.exceptions.ConnectionClosed(
-                                sock.close_code, sock.reason
+                                sock.close_code, sock.close_reason
                             )
 
                 await sock.send(json.dumps({"STATUS": "CLOSED"}))
