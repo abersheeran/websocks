@@ -24,41 +24,36 @@ def onlyfirst(*coros, loop=None) -> Future:
     """
     loop = loop or asyncio.get_running_loop()
     tasks: Set[Task] = set()
-    finished, result, _future = 0, loop.create_future(), None
+    result, _future = loop.create_future(), None
 
     def _done_callback(fut: Future) -> None:
-        nonlocal finished, result, _future
+        nonlocal result, _future
 
         if result.cancelled():
-            return  # nothing to do on cancelled
-
-        try:
-            fut.result()  # try raise exception
-        except Exception:
-            pass
-
-        finished += 1
+            return  # nothing to do on onlyfirst cancelled
 
         if _future is None:
-            _future = fut
+            _future = fut  # record first completed future
 
-        map(lambda task: task.cancel(), filter(lambda task: not task.done(), tasks))
+        cancel_all_task()
 
-        if finished == len(tasks):
-            try:
-                result.set_result(_future.result())
-            except Exception:
-                result.set_exception(_future.exception())
+        try:
+            result.set_result(_future.result())
+        except Exception:
+            result.set_exception(_future.exception())
+
+    def cancel_all_task() -> None:
+        for task in tasks:
+            task.remove_done_callback(_done_callback)
+
+        for task in filter(lambda task: not task.done(), tasks):
+            task.cancel()
 
     for coro in coros:
-        task = loop.create_task(coro)
+        task: Task = loop.create_task(coro)
         task.add_done_callback(_done_callback)
         tasks.add(task)
 
-    result.add_done_callback(
-        lambda fut: map(
-            lambda task: task.cancel(), filter(lambda task: not task.done(), tasks)
-        )
-    )
+    result.add_done_callback(lambda fut: cancel_all_task())
 
     return result

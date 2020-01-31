@@ -28,7 +28,7 @@ python = "^3.6.1"
 uvloop = {version = "*",markers = "sys_platform != 'win32' and sys_platform != 'cygwin' and platform_python_implementation != 'pypy'"}
 websockets = "^8.1"
 click = "^7.0"
-asyncio-socks5 = "^0.2.0"
+asyncio-socks5 = "^0.2.1"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.4.4"
