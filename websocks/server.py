@@ -30,22 +30,19 @@ class TCPSocket(Socket):
 
     async def recv(self, num: int = 4096) -> bytes:
         data = await self.r.read(num)
-        logger.debug(f"<<< {data}")
         return data
 
     async def send(self, data: bytes) -> int:
         self.w.write(data)
         await self.w.drain()
-        logger.debug(f">>> {data}")
         return len(data)
 
     async def close(self) -> None:
         if self.w.is_closing():
             return
-        while await self.r.read(4096):
-            pass  # just try
         self.w.close()
         await self.w.wait_closed()
+        logger.debug(f"Closed {self.w.get_extra_info('peername')}")
 
     @property
     def closed(self) -> bool:
@@ -76,7 +73,7 @@ class Server:
         self.port = port
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
-        logger.info(f"Connect from {sock.remote_address}")
+        logger.debug(f"Connect from {sock.remote_address}")
         try:
             while True:
                 data = await sock.recv()
