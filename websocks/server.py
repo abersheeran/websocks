@@ -40,7 +40,6 @@ class TCPSocket(Socket):
     async def close(self) -> None:
         self.w.close()
         await self.w.wait_closed()
-        logger.debug(f"Closed {self.w.get_extra_info('peername')}")
 
     @property
     def closed(self) -> bool:
@@ -74,6 +73,8 @@ class Server:
         logger.debug(f"Connect from {sock.remote_address}")
         try:
             while True:
+                websocks_has_closed = False
+
                 data = await sock.recv()
                 assert isinstance(data, str)
                 request = json.loads(data)
@@ -88,7 +89,8 @@ class Server:
                     try:
                         await bridge(sock, remote)
                     except TypeError:  # websocks closed
-                        continue
+                        await sock.send(json.dumps({"STATUS": "CLOSED"}))
+                        websocks_has_closed = True
                     finally:
                         await remote.close()
                         if sock.closed:
@@ -96,11 +98,13 @@ class Server:
                                 sock.close_code, sock.close_reason
                             )
 
-                await sock.send(json.dumps({"STATUS": "CLOSED"}))
-                while True:
-                    msg = await sock.recv()
-                    if isinstance(msg, str):
-                        break
+                if not websocks_has_closed:
+                    await sock.send(json.dumps({"STATUS": "CLOSED"}))
+                    while True:
+                        msg = await sock.recv()
+                        if isinstance(msg, str):
+                            break
+                    assert json.loads(msg)["STATUS"] == "CLOSED"
 
         except (AssertionError, KeyError):
             await sock.close()

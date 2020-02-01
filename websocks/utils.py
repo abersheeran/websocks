@@ -1,6 +1,6 @@
 import asyncio
 from asyncio import Task, Future
-from typing import Tuple, Dict, Any, Set, Awaitable
+from typing import Tuple, Dict, Any, Set
 
 
 class Singleton(type):
