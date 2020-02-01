@@ -7,16 +7,6 @@ if sys.platform == "win32":  # use IOCP in windows
     else:
         asyncio.set_event_loop(asyncio.ProactorEventLoop())
 
-    loop = asyncio.get_event_loop()
-
-    def exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
-        if isinstance(context.get("exception"), OSError):
-            # Override the default handler's handling of this
-            return  # nothing to do
-        return loop.default_exception_handler(context)
-
-    loop.set_exception_handler(exception_handler)
-
 try:
     import uvloop
 

@@ -1,25 +1,18 @@
-import os
 import re
-import time
 import json
 import base64
-import socket
-import signal
 import random
 import asyncio
 import typing
 import logging
-import traceback
-from functools import partial
 
 import websockets
 from websockets import WebSocketClientProtocol
 from socks5.server.sessions import ConnectSession as _ConnectSession
 from socks5.server.core import Socks5
-from socks5.utils import judge_atyp
 
 from .types import Socket
-from .utils import Singleton, onlyfirst
+from .utils import Singleton
 from . import rule
 
 
@@ -148,7 +141,7 @@ class Pool:
 
 
 class Pools(metaclass=Singleton):
-    def __init__(self, pools: typing.Sequence[Pool]) -> None:
+    def __init__(self, pools: typing.Sequence[Pool] = []) -> None:
         self.__pools = list(pools)
 
     def add(self, pool: Pool) -> None:
@@ -161,11 +154,15 @@ class Pools(metaclass=Singleton):
         return random.choice(self.__pools)
 
 
+OPENED = "OPENED"
+CLOSED = "CLOSED"
+
+
 class WebSocket(Socket):
     def __init__(self, sock: WebSocketClientProtocol, pool: Pool):
         self.pool = pool
         self.sock = sock
-        self.status = "OPEN"
+        self.status = OPENED
 
     @classmethod
     async def create_connection(cls, host: str, port: int) -> "WebSocket":
@@ -184,6 +181,8 @@ class WebSocket(Socket):
                         msg = await sock.recv()
                         if isinstance(msg, str):
                             break
+                    assert json.loads(msg)["STATUS"] == CLOSED
+
                     raise WebsocksRefused(
                         f"Websocks server can't connect {host}:{port}"
                     )
@@ -196,24 +195,28 @@ class WebSocket(Socket):
         return WebSocket(sock, pool)
 
     async def recv(self, num: int = -1) -> bytes:
+        if self.status == CLOSED:
+            return b""
+
         try:
             data = await self.sock.recv()
         except websockets.exceptions.ConnectionClosed:
-            self.status = "CLOSED"
-            raise ConnectionResetError("Connection closed.")
+            self.status = CLOSED
+            return b""
+
         logger.debug(f"<<< {data}")
+
         if isinstance(data, str):  # websocks
-            _data = json.loads(data)
-            if _data.get("STATUS") == "CLOSED":
-                self.status = "CLOSED"
-                raise WebsocksClosed("websocks closed.")
+            assert json.loads(data).get("STATUS") == CLOSED
+            self.status = CLOSED
+            return b""
         return data
 
     async def send(self, data: bytes) -> int:
         try:
             await self.sock.send(data)
         except websockets.exceptions.ConnectionClosed:
-            self.status = "CLOSED"
+            self.status = CLOSED
             raise ConnectionResetError("Connection closed.")
         logger.debug(f">>> {data}")
         return len(data)
@@ -234,7 +237,7 @@ class WebSocket(Socket):
 
     @property
     def closed(self) -> bool:
-        return self.status == "CLOSED" or self.sock.closed
+        return self.status == CLOSED or self.sock.closed
 
 
 class TCPSocket(Socket):
@@ -261,7 +264,10 @@ class TCPSocket(Socket):
 
     async def close(self) -> None:
         self.w.close()
-        await self.w.wait_closed()
+        try:
+            await self.w.wait_closed()
+        except ConnectionError:
+            pass  # nothing to do
 
     @property
     def closed(self) -> bool:
@@ -273,8 +279,6 @@ class ConnectSession(_ConnectSession):
         """
         connect remote and return Socket
         """
-        start_time = time.time()
-
         need_proxy = rule.judge(host)
         if need_proxy or get_policy() == "PROXY":
             remote = await WebSocket.create_connection(host, port)
@@ -288,12 +292,6 @@ class ConnectSession(_ConnectSession):
                 rule.add(host)
         else:
             remote = await TCPSocket.create_connection(host, port)
-
-        end_time = time.time()
-        logger.info(
-            f"{end_time - start_time:02.3f} {'Proxy' if not isinstance(remote, TCPSocket) else 'Direct'}: {host}:{port}"
-        )
-
         return remote
 
 
