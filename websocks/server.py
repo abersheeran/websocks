@@ -38,8 +38,6 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
-        if self.w.is_closing():
-            return
         self.w.close()
         await self.w.wait_closed()
         logger.debug(f"Closed {self.w.get_extra_info('peername')}")
@@ -92,8 +90,7 @@ class Server:
                     except TypeError:  # websocks closed
                         continue
                     finally:
-                        if not remote.closed:
-                            await remote.close()
+                        await remote.close()
                         if sock.closed:
                             raise websockets.exceptions.ConnectionClosed(
                                 sock.close_code, sock.close_reason
