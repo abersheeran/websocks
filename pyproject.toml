@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "websocks"
-version = "0.2.4"
+version = "0.2.5"
 description = "A websocket-based socks5 proxy."
 readme = "README.md"
 authors = ["abersheeran <me@abersheeran.com>"]
