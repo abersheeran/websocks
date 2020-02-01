@@ -208,9 +208,6 @@ class WebSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
-        if self.closed:
-            return
-
         try:
             await self.sock.send(json.dumps({"STATUS": "CLOSED"}))
         except websockets.exceptions.ConnectionClosed:
@@ -252,8 +249,6 @@ class TCPSocket(Socket):
         return len(data)
 
     async def close(self) -> None:
-        if self.w.is_closing():
-            return
         self.w.close()
         await self.w.wait_closed()
 
