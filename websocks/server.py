@@ -39,7 +39,10 @@ class TCPSocket(Socket):
 
     async def close(self) -> None:
         self.w.close()
-        await self.w.wait_closed()
+        try:
+            await self.w.wait_closed()
+        except ConnectionError:
+            pass
 
     @property
     def closed(self) -> bool:
@@ -107,9 +110,11 @@ class Server:
                     assert json.loads(msg)["STATUS"] == "CLOSED"
 
         except (AssertionError, KeyError):
-            await sock.close()
+            ...  # websocks implemented error
         except websockets.exceptions.ConnectionClosed:
-            pass
+            ...
+        finally:
+            await sock.close()
 
     async def handshake(
         self, path: str, request_headers: Headers
@@ -142,4 +147,3 @@ class Server:
     def run(self) -> None:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.run_server())
-        loop.stop()
