@@ -17,8 +17,9 @@ logging.basicConfig(
 @click.group(name="websocks", help="A websocket-based socks5 proxy.")
 @click.option("--debug/--no-debug", default=False, help="enable loop debug mode")
 def main(debug: bool) -> None:
-    asyncio.get_event_loop().set_debug(debug)
-    logging.getLogger("websocks").setLevel(logging.DEBUG)
+    if debug is True:
+        asyncio.get_event_loop().set_debug(debug)
+        logging.getLogger("websocks").setLevel(logging.DEBUG)
 
 
 @main.command(help="run a socks5 server as websocks client")
