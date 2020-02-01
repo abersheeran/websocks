@@ -5,8 +5,6 @@ from os import path
 
 import click
 
-from .rule import FilterRule
-
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(message)s",
@@ -23,35 +21,64 @@ def main(debug: bool) -> None:
 
 
 @main.command(help="run a socks5 server as websocks client")
-@click.option("-P", "--policy", default="AUTO", type=click.Choice(["AUTO", "PROXY"]))
-@click.option("-S", "--server", required=True, help="USERNAME:PASSWORD@HOST:PORT")
-@click.option("-R", "--rulefile", help="rule file absolute path")
+@click.option(
+    "-P",
+    "--policy",
+    default="AUTO",
+    type=click.Choice(["AUTO", "PROXY"]),
+    help="PROXY: always proxy; AUTO: auto judge;",
+)
+@click.option(
+    "-S",
+    "--server-url",
+    required=True,
+    multiple=True,
+    help="websocket url with username and password",
+)
+@click.option(
+    "-R",
+    "--rulefile",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="rule file absolute path",
+)
 @click.argument("address", type=click.Tuple([str, int]), default=("127.0.0.1", 3128))
-def client(policy: str, rulefile: str, server: str, address: typing.Tuple[str, int]):
-    if rulefile:
-        if path.exists(rulefile):
-            FilterRule(rulefile)
-        else:
-            raise FileNotFoundError(rulefile)
+def client(
+    policy: str,
+    rulefile: typing.List[str],
+    server_url: typing.List[str],
+    address: typing.Tuple[str, int],
+):
+    from .rule import FilterRule
+
+    FilterRule(rulefile)
 
     from .client import Client, set_policy, Pools, Pool
 
     set_policy(policy)
 
-    if not server.startswith("ws://") and not server.startswith("wss://"):
-        server = "wss://" + server
-
-    Pools([Pool(server)])
+    Pools(
+        [
+            Pool(
+                "wss://" + s
+                if not s.startswith("ws://") and not s.startswith("wss://")
+                else s
+            )
+            for s in server_url
+        ]
+    )
 
     Client(address[0], address[1]).run()
 
 
 @main.command(help="download rule file in local")
-@click.argument("list", nargs=-1, type=click.Choice(["gfw", "white"]))
-def download(list: typing.List[str]):
-    for l in list:
-        getattr(FilterRule, f"download_{l}list")()
-        click.secho(f"Successfully downloaded {l}list", fg="green")
+@click.argument("namelist", nargs=-1, type=click.Choice(["gfw", "white"]))
+def download(namelist: typing.List[str]):
+    from .rule import FilterRule
+
+    for name in namelist:
+        getattr(FilterRule, f"download_{name}list")()
+        click.secho(f"Successfully downloaded {name}list", fg="green")
 
 
 @main.command()
