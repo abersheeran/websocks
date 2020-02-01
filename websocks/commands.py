@@ -13,12 +13,12 @@ logging.basicConfig(
 )
 
 
-@click.group()
+@click.group(name="websocks", help="A websocket-based socks5 proxy.")
 def main() -> None:
     pass
 
 
-@main.command()
+@main.command(help="run a socks5 server as websocks client")
 @click.option("-P", "--policy", default="AUTO", type=click.Choice(["AUTO", "PROXY"]))
 @click.option("-S", "--server", required=True, help="USERNAME:PASSWORD@HOST:PORT")
 @click.option("-R", "--rulefile", help="rule file absolute path")
@@ -42,7 +42,7 @@ def client(policy: str, rulefile: str, server: str, address: typing.Tuple[str, i
     Client(address[0], address[1]).run()
 
 
-@main.command()
+@main.command(help="download rule file in local")
 @click.argument("list", nargs=-1, type=click.Choice(["gfw", "white"]))
 def download(list: typing.List[str]):
     for l in list:
