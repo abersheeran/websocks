@@ -109,6 +109,7 @@ class Pool:
 
                 for sock in tuple(self._freepool):
                     if sock.closed:
+                        await sock.close()
                         self._freepool.remove(sock)
 
                 while len(self._freepool) > self.initsize * 2:
@@ -123,6 +124,7 @@ class Pool:
             try:
                 sock = self._freepool.pop()
                 if sock.closed:
+                    await sock.close()
                     continue
                 if self.initsize > len(self._freepool):
                     asyncio.create_task(self._create())
@@ -131,10 +133,12 @@ class Pool:
                 await self._create()
 
     async def release(self, sock: WebSocketClientProtocol) -> None:
-        if isinstance(sock, websockets.WebSocketClientProtocol):
-            if sock.closed:
-                return
-            self._freepool.add(sock)
+        if not isinstance(sock, websockets.WebSocketClientProtocol):
+            return
+        if sock.closed:
+            await sock.close()
+            return
+        self._freepool.add(sock)
 
     async def _create(self) -> None:
         sock = await websockets.connect(
@@ -166,22 +170,29 @@ class WebSocket(Socket):
     @classmethod
     async def create_connection(cls, host: str, port: int) -> "WebSocket":
         pool = Pools().random()
-        sock = await pool.acquire()
-        # websocks shake hand
-        await sock.send(json.dumps({"HOST": host, "PORT": port}))
-        resp = await sock.recv()
-        try:
-            assert isinstance(resp, str), "must be str"
-            if not json.loads(resp)["ALLOW"]:
-                await sock.send(json.dumps({"STATUS": "CLOSED"}))
-                while True:
-                    msg = await sock.recv()
-                    if isinstance(msg, str):
-                        break
-                raise WebsocksRefused(f"Websocks server can't connect {host}:{port}")
-        except (AssertionError, KeyError):
-            raise WebsocksImplementationError()
-
+        while True:
+            try:
+                sock = await pool.acquire()
+                # websocks shake hand
+                await sock.send(json.dumps({"HOST": host, "PORT": port}))
+                resp = await sock.recv()
+                assert isinstance(resp, str), "must be str"
+                if not json.loads(resp)["ALLOW"]:
+                    # websocks close
+                    await sock.send(json.dumps({"STATUS": "CLOSED"}))
+                    while True:
+                        msg = await sock.recv()
+                        if isinstance(msg, str):
+                            break
+                    raise WebsocksRefused(
+                        f"Websocks server can't connect {host}:{port}"
+                    )
+            except (AssertionError, KeyError):
+                raise WebsocksImplementationError()
+            except websockets.exceptions.ConnectionClosedError:
+                pass
+            else:
+                break
         return WebSocket(sock, pool)
 
     async def recv(self, num: int = -1) -> bytes:
