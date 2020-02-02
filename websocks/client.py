@@ -134,10 +134,13 @@ class Pool:
         self._freepool.add(sock)
 
     async def _create(self) -> None:
-        sock = await websockets.connect(
-            self.server, extra_headers={"Authorization": self.get_credentials()}
-        )
-        self._freepool.add(sock)
+        try:
+            sock = await websockets.connect(
+                self.server, extra_headers={"Authorization": self.get_credentials()}
+            )
+            self._freepool.add(sock)
+        except websockets.exceptions.InvalidStatusCode as e:
+            logger.error(str(e))
 
 
 class Pools(metaclass=Singleton):
