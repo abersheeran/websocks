@@ -1,7 +1,6 @@
 import asyncio
 import typing
 import logging
-from os import path
 
 import click
 
@@ -72,7 +71,9 @@ def client(
 
 
 @main.command(help="download rule file in local")
-@click.argument("namelist", nargs=-1, type=click.Choice(["gfw", "white"]))
+@click.argument(
+    "namelist", nargs=-1, required=True, type=click.Choice(["gfw", "white"])
+)
 def download(namelist: typing.List[str]):
     from .rule import FilterRule
 
