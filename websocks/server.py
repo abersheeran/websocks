@@ -57,7 +57,10 @@ async def bridge(alice: Socket, bob: Socket) -> None:
                 return
             await receiver.send(data)
 
-    await onlyfirst(_bridge(alice, bob), _bridge(bob, alice))
+    try:
+        await onlyfirst(_bridge(alice, bob), _bridge(bob, alice))
+    except OSError:
+        pass
 
 
 class Server:
@@ -115,6 +118,7 @@ class Server:
             ...
         finally:
             await sock.close()
+            logger.debug(f"Disconnect to {sock.remote_address}")
 
     async def handshake(
         self, path: str, request_headers: Headers
