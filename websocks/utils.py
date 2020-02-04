@@ -38,9 +38,9 @@ def onlyfirst(*coros, loop=None) -> Future:
         cancel_all_task()
 
         if not result.done():
-            try:
+            if _future.exception() is None:
                 result.set_result(_future.result())
-            except Exception:
+            else:
                 result.set_exception(_future.exception())
 
     def cancel_all_task() -> None:
