@@ -2,11 +2,10 @@ import os
 import re
 import base64
 import typing
+import ipaddress
 from urllib import request
 
 from .utils import Singleton
-
-IPV4_PATTERN = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
 
 # if os.name == "posix":
 #     root = "~"
@@ -26,28 +25,8 @@ whitelist_path = os.path.join(root, "whitelist.txt")
 cache: set = set()
 
 
-def is_ipv4(host: str) -> bool:
-    """判断 host 是否为 IPV4 地址"""
-    return IPV4_PATTERN.match(host) is not None
-
-
-def is_local_ipv4(host: str) -> bool:
-    if host.startswith("10.") or host.startswith("127."):
-        # A类地址
-        return True
-    if host.startswith("169.254.") or (
-        host.startswith("172.") and 16 <= int(host.split(".")[1]) <= 31
-    ):
-        # B类地址
-        return True
-    if host.startswith("192.168."):
-        # C类地址
-        return True
-    return False
-
-
 class FilterRule(metaclass=Singleton):
-    def __init__(self, yourselfs: typing.Sequence[str] = []) -> None:
+    def __init__(self, yourselfs: typing.Sequence[str] = None) -> None:
         self.black_list = (
             re.compile(
                 r".*?google\.(ac|ad|ae|af|al|am|as|at|az|ba|be|bf|bg|bi|bj|bs|bt|by|ca|cat|cd|cf|cg|ch|ci|cl|cm|co.ao|co.bw|co.ck|co.cr|co.id|co.il|co.in|co.jp|co.ke|co.kr|co.ls|co.ma|com|com.af|com.ag|com.ai|com.ar|com.au|com.bd|com.bh|com.bn|com.bo|com.br|com.bz|com.co|com.cu|com.cy|com.do|com.ec|com.eg|com.et|com.fj|com.gh|com.gi|com.gt|com.hk|com.jm|com.kh|com.kw|com.lb|com.ly|com.mm|com.mt|com.mx|com.my|com.na|com.nf|com.ng|com.ni|com.np|com.om|com.pa|com.pe|com.pg|com.ph|com.pk|com.pr|com.py|com.qa|com.sa|com.sb|com.sg|com.sl|com.sv|com.tj|com.tr|com.tw|com.ua|com.uy|com.vc|com.vn|co.mz|co.nz|co.th|co.tz|co.ug|co.uk|co.uz|co.ve|co.vi|co.za|co.zm|co.zw|cv|cz|de|dj|dk|dm|dz|ee|es|eu|fi|fm|fr|ga|ge|gg|gl|gm|gp|gr|gy|hk|hn|hr|ht|hu|ie|im|iq|is|it|it.ao|je|jo|kg|ki|kz|la|li|lk|lt|lu|lv|md|me|mg|mk|ml|mn|ms|mu|mv|mw|mx|ne|nl|no|nr|nu|org|pl|pn|ps|pt|ro|rs|ru|rw|sc|se|sh|si|sk|sm|sn|so|sr|st|td|tg|tk|tl|tm|tn|to|tt|us|vg|vn|vu|ws)"
@@ -85,7 +64,7 @@ class FilterRule(metaclass=Singleton):
         try:
             file = open(filepath, "r")
             for line in file.readlines():
-                yield line
+                yield line.strip()
         except FileNotFoundError:
             pass
 
@@ -159,15 +138,20 @@ class FilterRule(metaclass=Singleton):
 
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
-    if is_ipv4(host):
-        if is_local_ipv4(host):
+    result = None
+
+    try:
+        address = ipaddress.ip_address(host)
+        if address.is_private:
             return False
-        return host in cache or None
+    except ValueError:
+        pass
 
     if host in cache:
         return True
 
     result = FilterRule().judge(host)
+
     if result is True:
         cache.add(host)
     return result
