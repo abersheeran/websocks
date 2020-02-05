@@ -283,7 +283,7 @@ class ConnectSession(_ConnectSession):
         connect remote and return Socket
         """
         need_proxy = rule.judge(host)
-        if need_proxy or get_policy() == "PROXY":
+        if (need_proxy and get_policy() != "DIRECT") or get_policy() == "PROXY":
             remote = await WebSocket.create_connection(host, port)
         elif need_proxy is None and get_policy() == "AUTO":
             try:

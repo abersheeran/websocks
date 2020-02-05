@@ -13,7 +13,7 @@ logging.basicConfig(
 
 @click.group(name="websocks", help="A websocket-based socks5 proxy.")
 @click.option("--debug/--no-debug", default=False, help="enable loop debug mode")
-def main(debug: bool) -> None:
+def main(debug: bool = False) -> None:
     if debug is True:
         asyncio.get_event_loop().set_debug(debug)
         logging.getLogger("websocks").setLevel(logging.DEBUG)
@@ -24,8 +24,8 @@ def main(debug: bool) -> None:
     "-P",
     "--policy",
     default="AUTO",
-    type=click.Choice(["AUTO", "PROXY"]),
-    help="PROXY: always proxy; AUTO: auto judge;",
+    type=click.Choice(["AUTO", "PROXY", "DIRECT", "GFW"]),
+    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
 )
 @click.option(
     "-S",

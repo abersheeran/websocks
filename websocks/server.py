@@ -76,8 +76,8 @@ class Server:
         self.port = port
 
     async def _link(self, sock: WebSocketServerProtocol, path: str):
-        logger.debug(f"Connect from {sock.remote_address}")
         try:
+            logger.debug(f"Connect from {sock.remote_address}")
             while True:
                 websocks_has_closed = False
 
