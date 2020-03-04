@@ -8,8 +8,8 @@ import logging
 
 import websockets
 from websockets import WebSocketClientProtocol
+from socks5.server import Socks5
 from socks5.server.sessions import ConnectSession as _ConnectSession
-from socks5.server.core import Socks5
 
 from .types import Socket
 from .utils import Singleton
