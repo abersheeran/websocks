@@ -1,20 +1,17 @@
-# import socket
-# import sys
-# import traceback
+import os
+import sys
+import time
+import socket
+import atexit
+import traceback
+import subprocess
 
-# try:
-#     import socks
+sys.path.insert(0, os.getcwd())
 
-#     socks.set_default_proxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 3128)
-#     socket.socket = socks.socksocket
-# except ImportError:
-#     sys.exit("You must install `socks` to run test.\nlike run `pip install pysocks`")
+try:
+    import socks
 
-# try:
-#     sock = socket.create_connection(("abersheeran.com", 80))
-#     sock.sendall(b"GET / HTTP/1.1\r\nHost:abersheeran.com\r\n\r\n")
-#     print(sock.recv(4096))
-# except socket.error:
-#     traceback.print_exc()
-# finally:
-#     sock.close()
+    socks.set_default_proxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 13128)
+    socket.socket = socks.socksocket
+except ImportError:
+    sys.exit("You must install `socks` to run test.\nlike run `pip install pysocks`")

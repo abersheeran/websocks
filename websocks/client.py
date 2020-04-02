@@ -1,7 +1,5 @@
-import re
 import json
 import base64
-import random
 import asyncio
 import typing
 import logging
@@ -12,7 +10,7 @@ from socks5.server import Socks5
 from socks5.server.sessions import ConnectSession as _ConnectSession
 
 from .types import Socket
-from .utils import Singleton
+from .config import config, g
 from . import rule
 
 
@@ -35,53 +33,12 @@ class WebsocksRefused(ConnectionRefusedError):
     pass
 
 
-################################################
-# POLICY
-################################################
-
-
-__policy__ = "AUTO"
-
-
-def set_policy(policy: str) -> None:
-    global __policy__
-    __policy__ = policy
-
-
-def get_policy() -> str:
-    return __policy__
-
-
-################################################
-# WEBSOCKET POOL
-################################################
-
-
-class ServerURL:
-    def __init__(self, server_url: str) -> None:
-        url_format = re.compile(
-            r"(?P<protocol>(ws|wss))://(?P<username>.+?):(?P<password>.+?)@(?P<uri>.+)"
-        )
-        match = url_format.match(server_url)
-        self.protocol = match.group("protocol")
-        self.username = match.group("username")
-        self.password = match.group("password")
-        self.uri = match.group("uri")
-
-    def __str__(self) -> str:
-        return f"{self.protocol}://{self.uri}"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
 class Pool:
-    def __init__(self, server: str, initsize: int = 7) -> None:
-        server_url = ServerURL(server)
+    def __init__(self, server_config: dict, initsize: int = 7) -> None:
         self.get_credentials = lambda: "Basic " + base64.b64encode(
-            f"{server_url.username}:{server_url.password}".encode("utf8")
+            f"{server_config['username']}:{server_config['password']}".encode("utf8")
         ).decode("utf8")
-        self.server = str(server_url)
+        self.server = server_config["protocol"] + "://" + server_config["url"]
 
         self.initsize = initsize
         self._freepool = set()
@@ -89,30 +46,43 @@ class Pool:
         self.create_timed_task()
 
     def init(self, size: int) -> None:
-        """初始化 Socket 池"""
+        """
+        初始化 WebSocket 池
+        """
         for _ in range(size):
             asyncio.get_event_loop().create_task(self._create())
 
     def create_timed_task(self) -> None:
-        """定时清理池中的 Socket"""
+        """
+        定时清理池中的 WebSocket
+        """
 
         async def timed_task() -> None:
-            while True:
-                await asyncio.sleep(7)
+            try:
+                while True:
+                    await asyncio.sleep(7)
 
-                for sock in tuple(self._freepool):
-                    if sock.closed:
+                    for sock in tuple(self._freepool):
+                        if sock.closed:
+                            await sock.close()
+                            self._freepool.remove(sock)
+
+                    while len(self._freepool) > self.initsize * 2:
+                        sock = self._freepool.pop()
                         await sock.close()
-                        self._freepool.remove(sock)
 
-                while len(self._freepool) > self.initsize * 2:
-                    sock = self._freepool.pop()
-                    await sock.close()
+                    while len(self._freepool) < self.initsize:
+                        await self._create()
+            except IOError:
+                pass
 
         _task = asyncio.get_event_loop().create_task(timed_task())
         _task.add_done_callback(lambda task: self.create_timed_task())
 
     async def acquire(self) -> WebSocketClientProtocol:
+        """
+        取出存活的 WebSocket 连接
+        """
         while True:
             try:
                 sock = self._freepool.pop()
@@ -126,6 +96,9 @@ class Pool:
                 await self._create()
 
     async def release(self, sock: WebSocketClientProtocol) -> None:
+        """
+        归还 WebSocket 连接
+        """
         if not isinstance(sock, websockets.WebSocketClientProtocol):
             return
         if sock.closed:
@@ -134,6 +107,9 @@ class Pool:
         self._freepool.add(sock)
 
     async def _create(self) -> None:
+        """
+        连接远端服务器
+        """
         try:
             sock = await websockets.connect(
                 self.server, extra_headers={"Authorization": self.get_credentials()}
@@ -141,20 +117,6 @@ class Pool:
             self._freepool.add(sock)
         except websockets.exceptions.InvalidStatusCode as e:
             logger.error(str(e))
-
-
-class Pools(metaclass=Singleton):
-    def __init__(self, pools: typing.Sequence[Pool] = []) -> None:
-        self.__pools = list(pools)
-
-    def add(self, pool: Pool) -> None:
-        self.__pools.append(pool)
-
-    def all(self) -> typing.List[Pool]:
-        return self.__pools
-
-    def random(self) -> Pool:
-        return random.choice(self.__pools)
 
 
 OPENED = "OPENED"
@@ -169,7 +131,7 @@ class WebSocket(Socket):
 
     @classmethod
     async def create_connection(cls, host: str, port: int) -> "WebSocket":
-        pool = Pools().random()
+        pool = g.pool
         while True:
             try:
                 sock = await pool.acquire()
@@ -283,9 +245,11 @@ class ConnectSession(_ConnectSession):
         connect remote and return Socket
         """
         need_proxy = rule.judge(host)
-        if (need_proxy and get_policy() != "DIRECT") or get_policy() == "PROXY":
+        if (
+            need_proxy and config.proxy_policy != "DIRECT"
+        ) or config.proxy_policy == "PROXY":
             remote = await WebSocket.create_connection(host, port)
-        elif need_proxy is None and get_policy() == "AUTO":
+        elif need_proxy is None and config.proxy_policy == "AUTO":
             try:
                 remote = await asyncio.wait_for(
                     TCPSocket.create_connection(host, port), timeout=2.3
@@ -298,6 +262,13 @@ class ConnectSession(_ConnectSession):
         return remote
 
 
-class Client(Socks5):
-    def __init__(self, host: str = "0.0.0.0", port: int = 1080) -> None:
-        super().__init__(host=host, port=port, connect_session_class=ConnectSession)
+class Client:
+    def __init__(self) -> None:
+        self.server = Socks5(
+            config.host, config.port, connect_session_class=ConnectSession
+        )
+
+    def run(self) -> typing.NoReturn:
+        logger.info(f"Proxy Policy: {config.proxy_policy}")
+        logger.info(f"")
+        self.server.run()

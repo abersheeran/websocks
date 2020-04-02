@@ -1,0 +1,11 @@
+host: "127.0.0.1"
+port: 31280
+servers:
+  - protocol: ws
+    username: guest
+    password: guest
+    url: localhost/path
+  - protocol: ws
+    username: guest
+    password: guest
+    url: 127.0.0.1:8765
