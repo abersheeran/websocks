@@ -1,3 +1,4 @@
+import os
 import asyncio
 import typing
 import logging
@@ -26,11 +27,12 @@ def main(debug: bool = False) -> None:
 
 
 @main.command(help="run a socks5 server as websocks client")
-@click.option(
-    "-S", "--server-index", type=int, help="server index",
+@click.argument(
+    "configuration",
+    type=click.Path(exists=True, dir_okay=False),
+    default=os.path.join(os.environ["HOME"], ".websocks", "config.yml"),
 )
-@click.argument("configuration", type=click.Path(exists=True, dir_okay=False))
-def client(server_index: int, configuration: str):
+def client(configuration: str):
     if configuration.endswith(".json"):
         config.from_json_file(configuration)
     else:
@@ -38,18 +40,7 @@ def client(server_index: int, configuration: str):
 
     FilterRule(config.rulefiles)
 
-    if server_index is None:
-        click.secho("选择以下服务之一: ")
-        for i, s in enumerate(config.servers):
-            click.secho(
-                f"[{i}] {s['protocol']}://{s['username']}:********@{s['url']}",
-                fg="green" if s['protocol'] == "wss" else "red"
-            )
-        server_index = int(input("请输入对应序号: "))
-        assert 0 <= server_index < len(config.servers)
-
-        print("")
-    g.pool = Pool(config.servers[server_index])
+    g.pool = Pool(config.servers[config.server_index])
 
     Client().run()
 
