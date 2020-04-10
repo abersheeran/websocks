@@ -39,7 +39,14 @@ class Pool:
             f"{server_config['username']}:{server_config['password']}".encode("utf8")
         ).decode("utf8")
         self.server = server_config["protocol"] + "://" + server_config["url"]
-
+        logger.info(
+            f"Server: "
+            + server_config["protocol"]
+            + "://"
+            + server_config["username"]
+            + "@"
+            + server_config["url"]
+        )
         self.initsize = initsize
         self._freepool = set()
         self.init(initsize)
@@ -270,5 +277,4 @@ class Client:
 
     def run(self) -> typing.NoReturn:
         logger.info(f"Proxy Policy: {config.proxy_policy}")
-        logger.info(f"")
         self.server.run()

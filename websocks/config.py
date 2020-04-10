@@ -54,6 +54,10 @@ class Config(State, metaclass=Singleton):
     """
     监听端口
     """
+    server_index: int
+    """
+    当前使用的服务器序号, 以 0 开始
+    """
     servers: Sequence[Dict[str, str]]
     """ WebSocks Server
     [
