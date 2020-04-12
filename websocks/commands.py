@@ -6,9 +6,9 @@ import logging
 import click
 
 from .rule import FilterRule
-from .client import Client, Pool
+from .client import Client
 from .server import Server
-from .config import config, g
+from .config import config
 
 
 logging.basicConfig(
@@ -39,8 +39,6 @@ def client(configuration: str):
         config.from_yaml_file(configuration)
 
     FilterRule(config.rulefiles)
-
-    g.pool = Pool(config.servers[config.server_index])
 
     Client().run()
 

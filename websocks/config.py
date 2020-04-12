@@ -98,6 +98,7 @@ class Config(State, metaclass=Singleton):
         self.setdefault("host", "127.0.0.1")
         self.setdefault("port", 3128)
         self.setdefault("proxy_policy", "AUTO")
+        self.setdefault("proxy_index", 0)
 
     def from_json_file(self, filepath: str) -> None:
         self._set_default_value()
