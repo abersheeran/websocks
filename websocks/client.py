@@ -49,15 +49,7 @@ class Pool:
         )
         self.initsize = initsize
         self._freepool = set()
-        self.init(initsize)
         self.create_timed_task()
-
-    def init(self, size: int) -> None:
-        """
-        初始化 WebSocket 池
-        """
-        for _ in range(size):
-            asyncio.get_event_loop().create_task(self._create())
 
     def create_timed_task(self) -> None:
         """
@@ -274,6 +266,7 @@ class Client:
         self.server = Socks5(
             config.host, config.port, connect_session_class=ConnectSession
         )
+        g.pool = Pool(config.servers[config.server_index])
 
     def run(self) -> typing.NoReturn:
         logger.info(f"Proxy Policy: {config.proxy_policy}")
