@@ -1,16 +1,27 @@
 import json
+import time
 import base64
 import asyncio
 import typing
 import logging
+from hashlib import md5
+from random import randint
+from socket import AF_INET, AF_INET6, inet_pton, inet_ntop
 
 import websockets
 from websockets import WebSocketClientProtocol
+from socks5.types import AddressType
+from socks5.values import Atyp
+from socks5.utils import judge_atyp
 from socks5.server import Socks5
-from socks5.server.sessions import ConnectSession as _ConnectSession
+from socks5.server.sessions import (
+    ConnectSession as _ConnectSession,
+    UDPSession as _UDPSession,
+)
 
 from .types import Socket
 from .config import config, g
+from .algorithm import AEAD
 from . import rule
 
 
@@ -259,6 +270,91 @@ class ConnectSession(_ConnectSession):
         else:
             remote = await TCPSocket.create_connection(host, port)
         return remote
+
+
+class UDPSession(_UDPSession):
+    def __init__(self, *args, **kwargs) -> None:
+        self.algorithm = AEAD[config.udp_server.algorithm](
+            md5(
+                (config.udp_server.username + config.udp_server.password).encode(
+                    "ascii"
+                )
+            ).hexdigest()
+        )
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def nonce() -> bytes:
+        return md5(
+            str(int(time.time()) // 1000) + ":" + config.udp_server.password
+        ).digest()
+
+    def pack(self, data: bytes, address: AddressType) -> bytes:
+        MASKING = b"".join(map(lambda x: randint(0, 255).to_bytes(1, "big"), range(4)))
+
+        ATYP = judge_atyp(address[0])
+        if ATYP == Atyp.IPV4:
+            DST_ADDR = inet_pton(AF_INET, address[0])
+        elif ATYP == Atyp.IPV6:
+            DST_ADDR = inet_pton(AF_INET6, address[0])
+        elif ATYP == Atyp.DOMAIN:
+            DST_ADDR = len(address[0]).to_bytes(1, "big") + address[0].encode("UTF-8")
+        ATYP = ATYP.to_bytes(1, "big")
+        DST_PORT = address[1].to_bytes(2, "big")
+
+        USERNAME = config.udp_server.username
+        ULEN = len(USERNAME)
+        USERDATA = ULEN.to_bytes(1, "big") + USERNAME.encode("ascii")
+
+        TARGET_DATA = self.algorithm.encrypt(
+            self.nonce(), ATYP + DST_ADDR + DST_PORT + data, None
+        )
+
+        DATA = USERDATA + TARGET_DATA
+
+        return MASKING + b"".join(
+            map(
+                lambda d: (MASKING[d[0] % 4] ^ d[1]).to_bytes(1, "big"), enumerate(DATA)
+            ),
+        )
+
+    def unpack(self, data: bytes) -> typing.Tuple[bytes, AddressType]:
+        MASKING = data[:4]
+        DATA = b"".join(
+            map(
+                lambda d: (MASKING[d[0] % 4] ^ d[1]).to_bytes(1, "big"),
+                enumerate(data[4:]),
+            ),
+        )
+        USERNAME = DATA[1 : DATA[0] + 1]
+        assert config.udp_server.username == USERNAME
+        TARGET_DATA = self.algorithm.encrypt(self.nonce(), DATA[DATA[0] + 1 :], None)
+        ATYP = TARGET_DATA[0]
+        if ATYP == Atyp.IPV4:
+            DST_ADDR = inet_ntop(AF_INET, TARGET_DATA[1:5])
+            DST_PORT = int.from_bytes(TARGET_DATA[5:7], "big")
+            data = TARGET_DATA[7:]
+        elif ATYP == Atyp.IPV6:
+            DST_ADDR = inet_ntop(AF_INET6, TARGET_DATA[1:17])
+            DST_PORT = int.from_bytes(TARGET_DATA[17:19], "big")
+            data = TARGET_DATA[19:]
+        elif ATYP == Atyp.DOMAIN:
+            DST_ADDR = TARGET_DATA[2 : TARGET_DATA[2] + 2].encode("UTF-8")
+            DST_PORT = int.from_bytes(
+                TARGET_DATA[TARGET_DATA[2] + 2 : TARGET_DATA[2] + 4], "big"
+            )
+            data = TARGET_DATA[TARGET_DATA[2] + 4]
+        return data, (DST_ADDR, DST_PORT)
+
+    def from_remote(
+        self, message: bytes, address: AddressType
+    ) -> typing.Tuple[bytes, AddressType]:
+        return self.unpack(message)
+
+    def from_local(
+        self, message: bytes, address: AddressType
+    ) -> typing.Tuple[bytes, AddressType]:
+        return self.pack(message, address)
 
 
 class Client:

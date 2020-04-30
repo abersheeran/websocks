@@ -1,5 +1,6 @@
 import re
 import json
+from dataclasses import dataclass
 from typing import Sequence, Dict, List
 
 try:
@@ -41,6 +42,24 @@ def convert_udp_url(uri: str) -> Dict[str, str]:
     return match.groupdict()
 
 
+@dataclass
+class TCP:
+    protocol: str
+    username: str
+    password: str
+    url: str
+
+
+@dataclass
+class UDP:
+    protocol: str
+    username: str
+    password: str
+    host: str
+    port: int
+    algorithm: str
+
+
 class Config(State, metaclass=Singleton):
     """
     客户端配置
@@ -54,34 +73,6 @@ class Config(State, metaclass=Singleton):
     """
     监听端口
     """
-    server_index: int
-    """
-    当前使用的服务器序号, 以 0 开始
-    """
-    servers: Sequence[Dict[str, str]]
-    """ WebSocks Server
-    [
-        {
-            "protocol": "ws"|"wss",
-            "username": "USERNAME",
-            "password": "PASSWORD",
-            "url": "URL",
-        },
-    ]
-    """
-    udp_server: Sequence[Dict[str, str]]
-    """ UDP Server
-    [
-        {
-            "protocol": "normal",
-            "username": "USERNAME",
-            "passoword": "PASSWORD",
-            "host": "HOST",
-            "port": "PORT",
-            "algorithm": "AEAD-NAME"
-        },
-    ]
-    """
     proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"]
     """ 代理策略
     AUTO: 自动判断
@@ -94,21 +85,36 @@ class Config(State, metaclass=Singleton):
     每一个字符串都应该是一个规则文件的路径
     """
 
+    tcp_server: TCP
+    udp_server: UDP
+
     def _set_default_value(self) -> None:
         self.setdefault("host", "127.0.0.1")
         self.setdefault("port", 3128)
         self.setdefault("proxy_policy", "AUTO")
         self.setdefault("proxy_index", 0)
 
+    def _update(self, data: dict) -> None:
+        if len(data["servers"]) == 1:
+            server = data["servers"][0]
+        else:
+            server = data["servers"][data.get("server_index", 0)]
+        if isinstance(server, str):
+            self.tcp_server = TCP(**convert_tcp_url(server))
+        elif isinstance(server, dict):
+            self.tcp_server = TCP(**server)
+        else:
+            raise ValueError("Server 必须是一个 str 或者 dict")
+
     def from_json_file(self, filepath: str) -> None:
         self._set_default_value()
         with open(filepath) as file:
-            self.update(json.load(file))
+            self._update(json.load(file))
 
     def from_yaml_file(self, filepath: str) -> None:
         self._set_default_value()
         with open(filepath) as file:
-            self.update(yaml.safe_load(file))
+            self._update(yaml.safe_load(file))
 
 
 g = State()  # 全局变量
