@@ -20,7 +20,7 @@ from socks5.server.sessions import (
 )
 
 from .types import Socket
-from .config import config, g
+from .config import config, g, TCP, UDP
 from .algorithm import AEAD
 from . import rule
 
@@ -45,18 +45,18 @@ class WebsocksRefused(ConnectionRefusedError):
 
 
 class Pool:
-    def __init__(self, server_config: dict, initsize: int = 7) -> None:
+    def __init__(self, server_config: TCP, initsize: int = 7) -> None:
         self.get_credentials = lambda: "Basic " + base64.b64encode(
-            f"{server_config['username']}:{server_config['password']}".encode("utf8")
+            f"{server_config.username}:{server_config.password}".encode("utf8")
         ).decode("utf8")
-        self.server = server_config["protocol"] + "://" + server_config["url"]
+        self.server = server_config.protocol + "://" + server_config.url
         logger.info(
             f"Server: "
-            + server_config["protocol"]
+            + server_config.protocol
             + "://"
-            + server_config["username"]
+            + server_config.username
             + "@"
-            + server_config["url"]
+            + server_config.url
         )
         self.initsize = initsize
         self._freepool = set()
@@ -362,7 +362,7 @@ class Client:
         self.server = Socks5(
             config.host, config.port, connect_session_class=ConnectSession
         )
-        g.pool = Pool(config.servers[config.server_index])
+        g.pool = Pool(config.tcp_server)
 
     def run(self) -> typing.NoReturn:
         logger.info(f"Proxy Policy: {config.proxy_policy}")
