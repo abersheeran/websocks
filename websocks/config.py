@@ -98,13 +98,16 @@ class Config(State, metaclass=Singleton):
         if len(data["servers"]) == 1:
             server = data["servers"][0]
         else:
-            server = data["servers"][data.get("server_index", 0)]
+            server = data["servers"][data.pop("server_index", 0)]
         if isinstance(server, str):
             self.tcp_server = TCP(**convert_tcp_url(server))
         elif isinstance(server, dict):
             self.tcp_server = TCP(**server)
         else:
-            raise ValueError("Server 必须是一个 str 或者 dict")
+            raise ValueError("Server Config 必须是一个 str 或者 dict")
+        data.pop("servers")
+
+        self.update(data)
 
     def from_json_file(self, filepath: str) -> None:
         self._set_default_value()
