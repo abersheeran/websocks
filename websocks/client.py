@@ -128,6 +128,8 @@ class Pool:
             self._freepool.add(sock)
         except websockets.exceptions.InvalidStatusCode as e:
             logger.error(str(e))
+        except OSError:
+            logger.error(f"IOError in connect {self.server}")
 
 
 OPENED = "OPENED"
