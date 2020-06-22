@@ -8,6 +8,7 @@ from hashlib import md5
 from random import randint
 from socket import AF_INET, AF_INET6, inet_pton, inet_ntop
 
+import aiodns
 import websockets
 from websockets import WebSocketClientProtocol
 from socks5.types import AddressType
@@ -249,12 +250,31 @@ class TCPSocket(Socket):
         return self.w.is_closing()
 
 
+async def get_ipv4(domain: str) -> str:
+    """
+    获取域名的 DNS A 记录第一个值
+    """
+    _record = await g.resolver.query(domain, "A")
+    if isinstance(_record, list) and _record:
+        record = _record[0]
+    else:
+        record = _record
+    return record.host
+
+
 class ConnectSession(_ConnectSession):
     async def connect_remote(self, host: str, port: int) -> Socket:
         """
         connect remote and return Socket
         """
-        need_proxy = rule.judge(host)
+        if config.proxy_policy == "CHINA":
+            if judge_atyp(host) == Atyp.DOMAIN:
+                ipv4 = await get_ipv4(host)
+            else:  # 这里暂时不考虑 IPv6 情况
+                ipv4 = host
+            need_proxy = not rule.judge(ipv4) is False
+        else:
+            need_proxy = rule.judge(host)
         if (
             need_proxy and config.proxy_policy != "DIRECT"
         ) or config.proxy_policy == "PROXY":

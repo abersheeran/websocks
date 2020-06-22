@@ -1,14 +1,16 @@
 import re
+import sys
 import json
 from dataclasses import dataclass
 from typing import Sequence, Dict, List
 
-try:
-    from typing import Literal
-except ImportError:
+if sys.version_info[:2] < (3, 8):
     from typing_extensions import Literal
+else:
+    from typing import Literal
 
 import yaml
+import aiodns
 
 from .utils import Singleton, State
 from .algorithm import AEAD
@@ -73,12 +75,13 @@ class Config(State, metaclass=Singleton):
     """
     监听端口
     """
-    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"]
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW", "CHINA"]
     """ 代理策略
     AUTO: 自动判断
     PROXY: 全部代理
     DIRECT: 全部不代理
     GFW: 仅代理 GFW 名单
+    CHINA: 绕过国内网络
     """
     rulefiles: List[str]
     """ 自定义规则文件
@@ -122,3 +125,6 @@ class Config(State, metaclass=Singleton):
 
 g = State()  # 全局变量
 config = Config()  # 快捷方式 - 配置
+
+
+g.resolver = aiodns.DNSResolver()
