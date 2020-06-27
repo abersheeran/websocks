@@ -256,7 +256,12 @@ async def get_ipv4(domain: str) -> str:
     """
     获取域名的 DNS A 记录第一个值
     """
-    _record = await g.resolver.query(domain, "A")
+    from socket import gaierror
+
+    try:
+        _record = await g.resolver.query(domain, "A")
+    except aiodns.error.DNSError:
+        raise gaierror(11002, "getaddrinfo failed")
     if isinstance(_record, list) and _record:
         record = _record[0]
     else:
