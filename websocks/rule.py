@@ -149,6 +149,13 @@ class FilterRule(metaclass=Singleton):
 CN_IPv4 = get_cn_ipv4_network()
 
 
+def is_china_ipv4(ipv4: ipaddress.IPv4Address) -> bool:
+    for network in CN_IPv4:
+        if ipv4 in network:
+            return True
+    return False
+
+
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
     result = None
@@ -157,9 +164,8 @@ def judge(host: str) -> typing.Optional[bool]:
         address = ipaddress.ip_address(host)
         if address.is_private:
             return False
-        for network in CN_IPv4:
-            if address in network:
-                return False
+        if address.version == 4 and is_china_ipv4(address):
+            return False
     except ValueError:
         pass
 

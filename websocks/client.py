@@ -279,7 +279,7 @@ class ConnectSession(_ConnectSession):
                 ipv4 = await get_ipv4(host)
             else:  # 这里暂时不考虑 IPv6 情况
                 ipv4 = host
-            need_proxy = not rule.judge(ipv4) is False
+            need_proxy = not (rule.judge(ipv4) is False)
         else:
             need_proxy = rule.judge(host)
         if (
