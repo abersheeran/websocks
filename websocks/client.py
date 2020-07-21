@@ -261,7 +261,7 @@ async def get_ipv4(domain: str) -> str:
     try:
         _record = await g.resolver.query(domain, "A")
     except aiodns.error.DNSError:
-        raise gaierror(11002, "getaddrinfo failed")
+        return None
     if isinstance(_record, list) and _record:
         record = _record[0]
     else:
@@ -279,9 +279,10 @@ class ConnectSession(_ConnectSession):
                 ipv4 = await get_ipv4(host)
             else:  # 这里暂时不考虑 IPv6 情况
                 ipv4 = host
-            need_proxy = not (rule.judge(ipv4) is False)
+            need_proxy = ipv4 is None or not (rule.judge(ipv4) is False)
         else:
             need_proxy = rule.judge(host)
+
         if (
             need_proxy and config.proxy_policy != "DIRECT"
         ) or config.proxy_policy == "PROXY":
