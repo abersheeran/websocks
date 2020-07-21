@@ -21,15 +21,6 @@ if not os.path.exists(root):
 
 gfwlist_path = os.path.join(root, "gfwlist.txt")
 whitelist_path = os.path.join(root, "whitelist.txt")
-cn_ip_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cn-ip.txt")
-
-
-def get_cn_ipv4_network() -> typing.Set[ipaddress.IPv4Network]:
-    result = set()
-    with open(cn_ip_path) as file:
-        for line in file:
-            result.add(ipaddress.IPv4Network(line.strip()))
-    return result
 
 
 cache: set = set()
@@ -146,16 +137,6 @@ class FilterRule(metaclass=Singleton):
                 return True
 
 
-CN_IPv4 = get_cn_ipv4_network()
-
-
-def is_china_ipv4(ipv4: ipaddress.IPv4Address) -> bool:
-    for network in CN_IPv4:
-        if ipv4 in network:
-            return True
-    return False
-
-
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
     result = None
@@ -163,8 +144,6 @@ def judge(host: str) -> typing.Optional[bool]:
     try:
         address = ipaddress.ip_address(host)
         if address.is_private:
-            return False
-        if address.version == 4 and is_china_ipv4(address):
             return False
     except ValueError:
         pass
