@@ -75,13 +75,13 @@ class Config(State, metaclass=Singleton):
     """
     监听端口
     """
-    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW", "CHINA"]
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW", "PREDNS"]
     """ 代理策略
     AUTO: 自动判断
     PROXY: 全部代理
     DIRECT: 全部不代理
     GFW: 仅代理 GFW 名单
-    CHINA: 绕过国内网络
+    PREDNS: 提前解析 DNS 判断 IP
     """
     rulefiles: List[str]
     """ 自定义规则文件
