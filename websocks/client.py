@@ -274,7 +274,7 @@ class ConnectSession(_ConnectSession):
         """
         connect remote and return Socket
         """
-        if config.proxy_policy == "CHINA":
+        if config.proxy_policy == "PREDNS":
             if judge_atyp(host) == Atyp.DOMAIN:
                 ipv4 = await get_ipv4(host)
             else:  # 这里暂时不考虑 IPv6 情况
