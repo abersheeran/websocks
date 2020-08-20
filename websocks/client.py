@@ -251,13 +251,29 @@ class TCPSocket(Socket):
     def closed(self) -> bool:
         return self.w.is_closing()
 
+    def __del__(self):
+        asyncio.get_event_loop().run_until_complete(self.close())
 
-async def get_ipv4(domain: str) -> str:
+
+async def get_ipv4(domain: str) -> typing.Optional[str]:
     """
     获取域名的 DNS A 记录第一个值
     """
-    from socket import gaierror
+    try:
+        _record = await g.resolver.query(domain, "A")
+    except aiodns.error.DNSError:
+        return None
+    if isinstance(_record, list) and _record:
+        record = _record[0]
+    else:
+        record = _record
+    return record.host
 
+
+async def get_ipv6(domain: str) -> typing.Optional[str]:
+    """
+    获取域名 DNS AAAA 记录第一个值
+    """
     try:
         _record = await g.resolver.query(domain, "A")
     except aiodns.error.DNSError:
@@ -274,14 +290,7 @@ class ConnectSession(_ConnectSession):
         """
         connect remote and return Socket
         """
-        if config.proxy_policy == "PREDNS":
-            if judge_atyp(host) == Atyp.DOMAIN:
-                ipv4 = await get_ipv4(host)
-            else:  # 这里暂时不考虑 IPv6 情况
-                ipv4 = host
-            need_proxy = ipv4 is None or not (rule.judge(ipv4) is False)
-        else:
-            need_proxy = rule.judge(host)
+        need_proxy = rule.judge(host)
 
         if (
             need_proxy and config.proxy_policy != "DIRECT"
