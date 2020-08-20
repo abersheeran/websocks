@@ -81,7 +81,6 @@ class Config(State, metaclass=Singleton):
     PROXY: 全部代理
     DIRECT: 全部不代理
     GFW: 仅代理 GFW 名单
-    PREDNS: 提前解析 DNS 判断 IP
     """
     rulefiles: List[str]
     """ 自定义规则文件
