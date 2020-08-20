@@ -252,7 +252,7 @@ class TCPSocket(Socket):
         return self.w.is_closing()
 
     def __del__(self):
-        asyncio.get_event_loop().run_until_complete(self.close())
+        asyncio.get_event_loop().create_task(self.close())
 
 
 async def get_ipv4(domain: str) -> typing.Optional[str]:
