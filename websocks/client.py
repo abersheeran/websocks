@@ -8,7 +8,6 @@ from hashlib import md5
 from random import randint
 from socket import AF_INET, AF_INET6, inet_pton, inet_ntop
 
-import aiodns
 import websockets
 from websockets import WebSocketClientProtocol
 from socks5.types import AddressType
@@ -253,36 +252,6 @@ class TCPSocket(Socket):
 
     def __del__(self):
         asyncio.get_event_loop().create_task(self.close())
-
-
-async def get_ipv4(domain: str) -> typing.Optional[str]:
-    """
-    获取域名的 DNS A 记录第一个值
-    """
-    try:
-        _record = await g.resolver.query(domain, "A")
-    except aiodns.error.DNSError:
-        return None
-    if isinstance(_record, list) and _record:
-        record = _record[0]
-    else:
-        record = _record
-    return record.host
-
-
-async def get_ipv6(domain: str) -> typing.Optional[str]:
-    """
-    获取域名 DNS AAAA 记录第一个值
-    """
-    try:
-        _record = await g.resolver.query(domain, "A")
-    except aiodns.error.DNSError:
-        return None
-    if isinstance(_record, list) and _record:
-        record = _record[0]
-    else:
-        record = _record
-    return record.host
 
 
 class ConnectSession(_ConnectSession):
