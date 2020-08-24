@@ -303,7 +303,6 @@ class ConnectSession(_ConnectSession):
                 )
             except (OSError, asyncio.TimeoutError):
                 remote = await WebSocket.create_connection(host, port)
-                rule.add(host)
         else:
             remote = await TCPSocket.create_connection(host, port)
         return remote
