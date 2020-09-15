@@ -1,9 +1,10 @@
 import asyncio
 import threading
 from asyncio import Task, Future
-from typing import Tuple, Dict, Any, Set
+from typing import Tuple, Dict, Any, Set, Optional
 
 import aiodns
+
 
 class Singleton(type):
     def __init__(
@@ -62,7 +63,7 @@ def onlyfirst(*coros, loop=None) -> Future:
     return result
 
 
-async def get_ipv4(domain: str) -> typing.Optional[str]:
+async def get_ipv4(domain: str) -> Optional[str]:
     """
     获取域名的 DNS A 记录第一个值
     """
@@ -77,7 +78,7 @@ async def get_ipv4(domain: str) -> typing.Optional[str]:
     return record.host
 
 
-async def get_ipv6(domain: str) -> typing.Optional[str]:
+async def get_ipv6(domain: str) -> Optional[str]:
     """
     获取域名 DNS AAAA 记录第一个值
     """

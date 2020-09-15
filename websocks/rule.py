@@ -63,9 +63,9 @@ class FilterRule(metaclass=Singleton):
     @staticmethod
     def open(filepath: str) -> typing.Generator:
         try:
-            file = open(filepath, "r")
-            for line in file.readlines():
-                yield line.strip()
+            with open(filepath, "r") as file:
+                for line in file.readlines():
+                    yield line.strip()
         except FileNotFoundError:
             pass
 
