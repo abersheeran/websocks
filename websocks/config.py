@@ -13,16 +13,9 @@ import yaml
 import aiodns
 
 from .utils import Singleton, State
-from .algorithm import AEAD
 
 TCP_FORMAT = re.compile(
     r"(?P<protocol>(ws|wss))://" + r"(?P<username>.+?):(?P<password>.+?)@(?P<url>.+)"
-)
-
-UDP_FORMAT = re.compile(
-    r"(?P<protocol>(normal))://(?P<username>.+?):(?P<password>.+?)@(?P<host>.+):(?P<port>\d+)/\?algorithm=(?P<algorithm>("
-    + "|".join(AEAD.keys())
-    + r"))"
 )
 
 
@@ -35,31 +28,12 @@ def convert_tcp_url(uri: str) -> Dict[str, str]:
     return match.groupdict()
 
 
-def convert_udp_url(uri: str) -> Dict[str, str]:
-    """
-    convert "normal://USERNAME:PASSWORD@HOST:PORT/?algorithm=AEAD-NAME"
-    """
-    match = UDP_FORMAT.match(uri)
-    assert match, "UDP uri format error"
-    return match.groupdict()
-
-
 @dataclass
 class TCP:
     protocol: str
     username: str
     password: str
     url: str
-
-
-@dataclass
-class UDP:
-    protocol: str
-    username: str
-    password: str
-    host: str
-    port: int
-    algorithm: str
 
 
 class Config(State, metaclass=Singleton):
@@ -88,42 +62,40 @@ class Config(State, metaclass=Singleton):
     """
 
     tcp_server: TCP
-    udp_server: UDP
 
-    def _set_default_value(self) -> None:
+    def set_default_values(self) -> None:
         self.setdefault("host", "127.0.0.1")
         self.setdefault("port", 3128)
         self.setdefault("proxy_policy", "AUTO")
         self.setdefault("proxy_index", 0)
+        self.setdefault("rulefiles", [])
 
     def _update(self, data: dict) -> None:
-        if len(data["servers"]) == 1:
-            server = data["servers"][0]
-        else:
-            server = data["servers"][data.pop("server_index", 0)]
-        if isinstance(server, str):
-            self.tcp_server = TCP(**convert_tcp_url(server))
-        elif isinstance(server, dict):
-            self.tcp_server = TCP(**server)
-        else:
-            raise ValueError("Server Config 必须是一个 str 或者 dict")
-        data.pop("servers")
-
+        if "servers" in data:
+            if len(data["servers"]) == 1:
+                server = data["servers"][0]
+            else:
+                server = data["servers"][data.pop("server_index", 0)]
+            if isinstance(server, str):
+                self.tcp_server = TCP(**convert_tcp_url(server))
+            elif isinstance(server, dict):
+                self.tcp_server = TCP(**server)
+            else:
+                raise ValueError("Server Config must be a `str` or a `dict`")
+            data.pop("servers")
         self.update(data)
 
     def from_json_file(self, filepath: str) -> None:
-        self._set_default_value()
         with open(filepath) as file:
             self._update(json.load(file))
 
     def from_yaml_file(self, filepath: str) -> None:
-        self._set_default_value()
         with open(filepath) as file:
             self._update(yaml.safe_load(file))
 
 
 g = State()  # 全局变量
 config = Config()  # 快捷方式 - 配置
-
+config.set_default_values()
 
 g.resolver = aiodns.DNSResolver()

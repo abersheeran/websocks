@@ -1,7 +1,13 @@
 import os
+import sys
 import asyncio
 import typing
 import logging
+
+if sys.version_info[:2] < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 import click
 
@@ -27,20 +33,59 @@ def main(debug: bool = False) -> None:
 
 
 @main.command(help="run a socks5 server as websocks client")
-@click.argument(
-    "configuration",
+@click.option(
+    "-P",
+    "--proxy-policy",
+    default="AUTO",
+    type=click.Choice(["AUTO", "PROXY", "DIRECT", "GFW"]),
+    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
+)
+@click.option(
+    "-S", "--server-url", help="websocket url with username and password",
+)
+@click.option(
+    "-R",
+    "--rulefile",
+    multiple=True,
     type=click.Path(exists=True, dir_okay=False),
+    help="rule file absolute path",
+)
+@click.option(
+    "-c",
+    "--configuration",
     default=os.path.join(os.environ["HOME"], ".websocks", "config.yml"),
 )
-def client(configuration: str):
-    if configuration.endswith(".json"):
-        config.from_json_file(configuration)
+@click.argument("address", type=click.Tuple([str, int]), default=("127.0.0.1", 3128))
+def client(
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"],
+    rulefile: typing.List[str],
+    server_url: str,
+    address: typing.Tuple[str, int],
+    configuration: str,
+):
+    if os.path.isfile(configuration):
+        if configuration.endswith(".json"):
+            config.from_json_file(configuration)
+        else:
+            config.from_yaml_file(configuration)
     else:
-        config.from_yaml_file(configuration)
+        logging.warning(f"The file that don't exist: {configuration}")
+
+    new_config = {}
+    if address != ("127.0.0.1", 3128):
+        new_config["host"] = address[0]
+        new_config["port"] = address[1]
+    if proxy_policy != "AUTO":
+        new_config["proxy_policy"] = proxy_policy
+    if rulefile:
+        new_config["rulefiles"] = rulefile
+    if server_url:
+        new_config["servers"] = [server_url]
+    config._update(new_config)
 
     FilterRule(config.rulefiles)
 
-    Client().run()
+    Client(config.host, config.port).run()
 
 
 @main.command(help="download rule file in local")

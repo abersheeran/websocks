@@ -4,24 +4,19 @@ import base64
 import asyncio
 import typing
 import logging
-from hashlib import md5
+import signal
 from random import randint
+from string import capwords
+from http import HTTPStatus
+from urllib.parse import splitport
 from socket import AF_INET, AF_INET6, inet_pton, inet_ntop
 
 import websockets
 from websockets import WebSocketClientProtocol
-from socks5.types import AddressType
-from socks5.values import Atyp
-from socks5.utils import judge_atyp
-from socks5.server import Socks5
-from socks5.server.sessions import (
-    ConnectSession as _ConnectSession,
-    UDPSession as _UDPSession,
-)
 
 from .types import Socket
-from .config import config, g, TCP, UDP
-from .algorithm import AEAD
+from .utils import onlyfirst
+from .config import config, g, TCP
 from . import rule
 
 
@@ -251,124 +246,146 @@ class TCPSocket(Socket):
         return self.w.is_closing()
 
     def __del__(self):
-        asyncio.get_event_loop().create_task(self.close())
+        asyncio.get_running_loop().create_task(self.close())
 
 
-class ConnectSession(_ConnectSession):
-    async def connect_remote(self, host: str, port: int) -> Socket:
-        """
-        connect remote and return Socket
-        """
-        need_proxy = rule.judge(host)
-
-        if (
-            need_proxy and config.proxy_policy != "DIRECT"
-        ) or config.proxy_policy == "PROXY":
-            remote = await WebSocket.create_connection(host, port)
-        elif need_proxy is None and config.proxy_policy == "AUTO":
-            try:
-                remote = await asyncio.wait_for(
-                    TCPSocket.create_connection(host, port), timeout=2.3
-                )
-            except (OSError, asyncio.TimeoutError):
-                remote = await WebSocket.create_connection(host, port)
-        else:
-            remote = await TCPSocket.create_connection(host, port)
-        return remote
-
-
-class UDPSession(_UDPSession):
-    def __init__(self, *args, **kwargs) -> None:
-        self.algorithm = AEAD[config.udp_server.algorithm](
-            md5(
-                (config.udp_server.username + config.udp_server.password).encode(
-                    "ascii"
-                )
-            ).hexdigest()
-        )
-        super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def nonce() -> bytes:
-        return md5(
-            str(int(time.time()) // 1000) + ":" + config.udp_server.password
-        ).digest()
-
-    def pack(self, data: bytes, address: AddressType) -> bytes:
-        MASKING = b"".join(map(lambda x: randint(0, 255).to_bytes(1, "big"), range(4)))
-
-        ATYP = judge_atyp(address[0])
-        if ATYP == Atyp.IPV4:
-            DST_ADDR = inet_pton(AF_INET, address[0])
-        elif ATYP == Atyp.IPV6:
-            DST_ADDR = inet_pton(AF_INET6, address[0])
-        elif ATYP == Atyp.DOMAIN:
-            DST_ADDR = len(address[0]).to_bytes(1, "big") + address[0].encode("UTF-8")
-        ATYP = ATYP.to_bytes(1, "big")
-        DST_PORT = address[1].to_bytes(2, "big")
-
-        USERNAME = config.udp_server.username
-        ULEN = len(USERNAME)
-        USERDATA = ULEN.to_bytes(1, "big") + USERNAME.encode("ascii")
-
-        TARGET_DATA = self.algorithm.encrypt(
-            self.nonce(), ATYP + DST_ADDR + DST_PORT + data, None
-        )
-
-        DATA = USERDATA + TARGET_DATA
-
-        return MASKING + b"".join(
-            map(
-                lambda d: (MASKING[d[0] % 4] ^ d[1]).to_bytes(1, "big"), enumerate(DATA)
-            ),
-        )
-
-    def unpack(self, data: bytes) -> typing.Tuple[bytes, AddressType]:
-        MASKING = data[:4]
-        DATA = b"".join(
-            map(
-                lambda d: (MASKING[d[0] % 4] ^ d[1]).to_bytes(1, "big"),
-                enumerate(data[4:]),
-            ),
-        )
-        USERNAME = DATA[1 : DATA[0] + 1]
-        assert config.udp_server.username == USERNAME
-        TARGET_DATA = self.algorithm.encrypt(self.nonce(), DATA[DATA[0] + 1 :], None)
-        ATYP = TARGET_DATA[0]
-        if ATYP == Atyp.IPV4:
-            DST_ADDR = inet_ntop(AF_INET, TARGET_DATA[1:5])
-            DST_PORT = int.from_bytes(TARGET_DATA[5:7], "big")
-            data = TARGET_DATA[7:]
-        elif ATYP == Atyp.IPV6:
-            DST_ADDR = inet_ntop(AF_INET6, TARGET_DATA[1:17])
-            DST_PORT = int.from_bytes(TARGET_DATA[17:19], "big")
-            data = TARGET_DATA[19:]
-        elif ATYP == Atyp.DOMAIN:
-            DST_ADDR = TARGET_DATA[2 : TARGET_DATA[2] + 2].encode("UTF-8")
-            DST_PORT = int.from_bytes(
-                TARGET_DATA[TARGET_DATA[2] + 2 : TARGET_DATA[2] + 4], "big"
+async def connect_remote(host: str, port: int) -> Socket:
+    """
+    connect remote and return Socket
+    """
+    need_proxy = rule.judge(host)
+    logger.debug(f"{host} need proxy? {need_proxy}")
+    if (
+        need_proxy and config.proxy_policy != "DIRECT"
+    ) or config.proxy_policy == "PROXY":
+        remote = await WebSocket.create_connection(host, port)
+    elif need_proxy is None and config.proxy_policy == "AUTO":
+        try:
+            remote = await asyncio.wait_for(
+                TCPSocket.create_connection(host, port), timeout=2.3
             )
-            data = TARGET_DATA[TARGET_DATA[2] + 4]
-        return data, (DST_ADDR, DST_PORT)
+        except (OSError, asyncio.TimeoutError):
+            remote = await WebSocket.create_connection(host, port)
+    else:
+        remote = await TCPSocket.create_connection(host, port)
+    return remote
 
-    def from_remote(
-        self, message: bytes, address: AddressType
-    ) -> typing.Tuple[bytes, AddressType]:
-        return self.unpack(message)
 
-    def from_local(
-        self, message: bytes, address: AddressType
-    ) -> typing.Tuple[bytes, AddressType]:
-        return self.pack(message, address)
+async def bridge(s0: Socket, s1: Socket) -> None:
+    async def _(sender: Socket, receiver: Socket):
+        try:
+            while True:
+                data = await sender.recv(8192)
+                if not data:
+                    break
+                await receiver.send(data)
+        except OSError:
+            pass
+
+    await onlyfirst(_(s0, s1), _(s1, s0))
 
 
 class Client:
-    def __init__(self) -> None:
-        self.server = Socks5(
-            config.host, config.port, connect_session_class=ConnectSession
-        )
+    def __init__(self, host: str = "0.0.0.0", port: int = 3128) -> None:
+        self.host = host
+        self.port = port
+        if "tcp_server" not in config:
+            raise RuntimeError("You need to specify a websocks server.")
         g.pool = Pool(config.tcp_server)
 
-    def run(self) -> typing.NoReturn:
+    async def dispatch(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        firstline = await reader.readline()
+        for index, data in enumerate(firstline):
+            reader._buffer.insert(index, data)
+        method = firstline.decode("ascii").split(" ", maxsplit=1)[0]
+        sock = TCPSocket(reader, writer)
+        try:
+            await getattr(self, method.lower(), self.default)(sock)
+        finally:
+            await sock.close()
+
+    async def default(self, sock: TCPSocket) -> None:
+        firstline = await sock.r.readline()
+        if firstline == b"":
+            return
+
+        method, url, version = firstline.decode("ascii").strip().split(" ")
+
+        scheme = url.split("://")[0]
+        netloc, urlpath = url.split("://")[1].split("/", 1)
+
+        if not urlpath:
+            urlpath = "/"
+
+        host, port = splitport(netloc)
+        if port is None:
+            port = {"http": 80, "https": 443}[scheme]
+
+        logger.info(f"{capwords(method)} request to ('{host}', {port})")
+        try:
+            remote = await connect_remote(host, int(port))
+        except Exception:
+            return
+
+        for index, data in enumerate(
+            (" ".join([method, urlpath, version]) + "\r\n").encode("ascii")
+        ):
+            sock.r._buffer.insert(index, data)
+        await bridge(remote, sock)
+        await remote.close()
+
+    async def connect(self, sock: TCPSocket) -> None:
+        async def reply(status_code: HTTPStatus) -> None:
+            await sock.send(
+                (
+                    f"HTTP/1.1 {status_code.value} {status_code.phrase}"
+                    f"\r\nServer: O-O"
+                    f"\r\n\r\n"
+                ).encode("ascii")
+            )
+
+        # parse HTTP CONNECT
+        raw_request = b""
+        while True:
+            raw_request += await sock.recv(8192)
+            if raw_request.endswith(b"\r\n\r\n"):
+                break
+        method, hostport, version = (
+            raw_request.splitlines()[0].decode("ascii").split(" ")
+        )
+        host, port = hostport.split(":")
+        logger.info(f"Connect request to ('{host}', {port})")
+
+        try:
+            remote = await connect_remote(host, int(port))
+        except asyncio.TimeoutError:
+            await reply(HTTPStatus.GATEWAY_TIMEOUT)
+        except OSError:
+            await reply(HTTPStatus.BAD_GATEWAY)
+        else:
+            await reply(HTTPStatus.OK)
+            await bridge(remote, sock)
+            await remote.close()
+
+    async def run_server(self) -> typing.NoReturn:
+        server = await asyncio.start_server(self.dispatch, self.host, self.port)
         logger.info(f"Proxy Policy: {config.proxy_policy}")
-        self.server.run()
+        logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
+
+        def termina(signo, frame):
+            server.close()
+            logger.info(f"HTTP Server has closed.")
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGINT, termina)
+        signal.signal(signal.SIGTERM, termina)
+
+        while True:
+            await asyncio.sleep(1)
+
+    def run(self) -> None:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.run_server())
+        loop.stop()
