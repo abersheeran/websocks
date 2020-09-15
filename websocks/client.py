@@ -314,10 +314,12 @@ class Client:
         method, url, version = firstline.decode("ascii").strip().split(" ")
 
         scheme = url.split("://")[0]
-        netloc, urlpath = url.split("://")[1].split("/", 1)
-
-        if not urlpath:
-            urlpath = "/"
+        if "/" in url.split("://")[1]:
+            netloc, urlpath = url.split("://")[1].split("/", 1)
+        else:
+            netloc = url.split("://")[1]
+            urlpath = ""
+        urlpath = "/" + urlpath
 
         host, port = splitport(netloc)
         if port is None:
@@ -337,12 +339,13 @@ class Client:
         await remote.close()
 
     async def connect(self, sock: TCPSocket) -> None:
-        async def reply(status_code: HTTPStatus) -> None:
+        async def reply(http_version: str, status_code: HTTPStatus) -> None:
             await sock.send(
                 (
-                    f"HTTP/1.1 {status_code.value} {status_code.phrase}"
-                    f"\r\nServer: O-O"
-                    f"\r\n\r\n"
+                    f"{http_version} {status_code.value} {status_code.phrase}\r\n"
+                    "Server: O-O\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"
                 ).encode("ascii")
             )
 
@@ -361,11 +364,11 @@ class Client:
         try:
             remote = await connect_remote(host, int(port))
         except asyncio.TimeoutError:
-            await reply(HTTPStatus.GATEWAY_TIMEOUT)
+            await reply(version, HTTPStatus.GATEWAY_TIMEOUT)
         except OSError:
-            await reply(HTTPStatus.BAD_GATEWAY)
+            await reply(version, HTTPStatus.BAD_GATEWAY)
         else:
-            await reply(HTTPStatus.OK)
+            await reply(version, HTTPStatus.OK)
             await bridge(remote, sock)
             await remote.close()
 
