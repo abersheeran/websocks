@@ -32,7 +32,7 @@ def main(debug: bool = False) -> None:
         logging.getLogger("websocks").setLevel(logging.DEBUG)
 
 
-@main.command(help="run a socks5 server as websocks client")
+@main.command(help="run a http server as websocks client")
 @click.option(
     "-P",
     "--proxy-policy",
