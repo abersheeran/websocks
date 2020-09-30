@@ -246,7 +246,7 @@ class TCPSocket(Socket):
         return self.w.is_closing()
 
     def __del__(self):
-        asyncio.get_running_loop().create_task(self.close())
+        self.w.close()
 
 
 async def connect_remote(host: str, port: int) -> Socket:
