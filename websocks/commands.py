@@ -11,7 +11,7 @@ else:
 
 import click
 
-from .rule import FilterRule
+from .rule import FilterRule, judge
 from .client import Client
 from .server import Server
 from .config import config
@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 
 
-@click.group(name="websocks", help="A websocket-based socks5 proxy.")
+@click.group(name="websocks", help="A websocket-based proxy.")
 @click.option("--debug/--no-debug", default=False, help="enable loop debug mode")
 def main(debug: bool = False) -> None:
     if debug is True:
@@ -32,7 +32,7 @@ def main(debug: bool = False) -> None:
         logging.getLogger("websocks").setLevel(logging.DEBUG)
 
 
-@main.command(help="run a http server as websocks client")
+@main.command(help="Create a http server as websocks client")
 @click.option(
     "-P",
     "--proxy-policy",
@@ -88,7 +88,7 @@ def client(
     Client(config.host, config.port).run()
 
 
-@main.command(help="download rule file in local")
+@main.command(help="Download rule file in local")
 @click.argument(
     "namelist", nargs=-1, required=True, type=click.Choice(["gfw", "white"])
 )
@@ -98,7 +98,60 @@ def download(namelist: typing.List[str]):
         click.secho(f"Successfully downloaded {name}list", fg="green")
 
 
-@main.command()
+@main.command(help="Check whether the host needs pass proxy")
+@click.option(
+    "-P",
+    "--proxy-policy",
+    default="AUTO",
+    type=click.Choice(["AUTO", "PROXY", "DIRECT", "GFW"]),
+    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
+)
+@click.option(
+    "-R",
+    "--rulefile",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="rule file absolute path",
+)
+@click.option(
+    "-c",
+    "--configuration",
+    default=os.path.join(os.environ["HOME"], ".websocks", "config.yml"),
+)
+@click.argument("host")
+def check(
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"],
+    rulefile: typing.List[str],
+    configuration: str,
+    host: str,
+):
+    if os.path.isfile(configuration):
+        if configuration.endswith(".json"):
+            config.from_json_file(configuration)
+        else:
+            config.from_yaml_file(configuration)
+    else:
+        logging.warning(f"The file that don't exist: {configuration}")
+
+    new_config = {}
+    if proxy_policy != "AUTO":
+        new_config["proxy_policy"] = proxy_policy
+    if rulefile:
+        new_config["rulefiles"] = rulefile
+    config._update(new_config)
+
+    FilterRule(config.rulefiles)
+
+    need_proxy = judge(host)
+    if need_proxy is True:
+        click.secho("Need proxy.", fg="red")
+    elif need_proxy is None:
+        click.secho("Don't know.")
+    elif need_proxy is False:
+        click.secho("Don't need proxy.", fg="green")
+
+
+@main.command(help="Create websocks server")
 @click.option(
     "-U", "--userpass", required=True, multiple=True, help="USERNAME:PASSWORD"
 )
