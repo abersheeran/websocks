@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import base64
@@ -9,13 +10,13 @@ from random import randint
 from string import capwords
 from http import HTTPStatus
 from urllib.parse import splitport
-from socket import AF_INET, AF_INET6, inet_pton, inet_ntop
+from socket import AF_INET, AF_INET6, inet_pton, inet_ntop, socket as RawSocket
 
 import websockets
 from websockets import WebSocketClientProtocol
 
 from .types import Socket
-from .utils import onlyfirst
+from .utils import onlyfirst, create_task
 from .config import config, g, TCP
 from . import rule
 
@@ -55,34 +56,26 @@ class Pool:
         )
         self.initsize = initsize
         self._freepool = set()
-        self.create_timed_task()
+        create_task(asyncio.get_event_loop(), self.clear_pool())
 
-    def create_timed_task(self) -> None:
+    async def clear_pool(self) -> None:
         """
         定时清理池中的 WebSocket
         """
+        while True:
+            await asyncio.sleep(7)
 
-        async def timed_task() -> None:
-            try:
-                while True:
-                    await asyncio.sleep(7)
+            for sock in tuple(self._freepool):
+                if sock.closed:
+                    await sock.close()
+                    self._freepool.remove(sock)
 
-                    for sock in tuple(self._freepool):
-                        if sock.closed:
-                            await sock.close()
-                            self._freepool.remove(sock)
+            while len(self._freepool) > self.initsize * 2:
+                sock = self._freepool.pop()
+                await sock.close()
 
-                    while len(self._freepool) > self.initsize * 2:
-                        sock = self._freepool.pop()
-                        await sock.close()
-
-                    while len(self._freepool) < self.initsize:
-                        await self._create()
-            except IOError:
-                pass
-
-        _task = asyncio.get_event_loop().create_task(timed_task())
-        _task.add_done_callback(lambda task: self.create_timed_task())
+            while len(self._freepool) < self.initsize:
+                await self._create()
 
     async def acquire(self) -> WebSocketClientProtocol:
         """
@@ -145,7 +138,7 @@ class WebSocket(Socket):
                 # websocks shake hand
                 await sock.send(json.dumps({"HOST": host, "PORT": port}))
                 resp = await sock.recv()
-                assert isinstance(resp, str), "must be str"
+                assert isinstance(resp, str)
                 if not json.loads(resp)["ALLOW"]:
                     # websocks close
                     await sock.send(json.dumps({"STATUS": "CLOSED"}))
@@ -216,12 +209,17 @@ class TCPSocket(Socket):
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.r = reader
         self.w = writer
+        self.__socket = writer.get_extra_info("socket")
 
     @classmethod
     async def create_connection(cls, host: str, port: int) -> "TCPSocket":
         """create a TCP socket"""
         r, w = await asyncio.open_connection(host=host, port=port)
         return TCPSocket(r, w)
+
+    @property
+    def socket(self) -> RawSocket:
+        return self.__socket
 
     async def recv(self, num: int = 4096) -> bytes:
         data = await self.r.read(num)
@@ -254,7 +252,7 @@ async def connect_remote(host: str, port: int) -> Socket:
     connect remote and return Socket
     """
     need_proxy = rule.judge(host)
-    logger.debug(f"{host} need proxy? {need_proxy}")
+    rule.logger.debug(f"{host} need proxy? {need_proxy}")
     if (
         need_proxy and config.proxy_policy != "DIRECT"
     ) or config.proxy_policy == "PROXY":

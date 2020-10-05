@@ -50,7 +50,7 @@ class TCPSocket(Socket):
 
 
 async def bridge(alice: Socket, bob: Socket) -> None:
-    async def _bridge(sender: Socket, receiver: Socket) -> None:
+    async def _(sender: Socket, receiver: Socket) -> None:
         while True:
             data = await sender.recv()
             if not data:
@@ -58,7 +58,7 @@ async def bridge(alice: Socket, bob: Socket) -> None:
             await receiver.send(data)
 
     try:
-        await onlyfirst(_bridge(alice, bob), _bridge(bob, alice))
+        await onlyfirst(_(alice, bob), _(bob, alice))
     except OSError:
         pass
 
@@ -136,10 +136,10 @@ class Server:
         async with websockets.serve(
             self._link, host=self.host, port=self.port, process_request=self.handshake
         ) as server:
-            logger.info(f"Websocks Server serving on {self.host}:{self.port}")
+            logger.info(f"WebSocks Server serving on {self.host}:{self.port}")
 
             def termina(signo, frame):
-                logger.info(f"Websocks Server has closed.")
+                logger.info(f"WebSocks Server has closed.")
                 raise SystemExit(0)
 
             signal.signal(signal.SIGINT, termina)

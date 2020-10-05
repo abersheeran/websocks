@@ -1,7 +1,9 @@
 import asyncio
 import threading
-from asyncio import Task, Future
-from typing import Tuple, Dict, Any, Set, Optional
+from asyncio import AbstractEventLoop, Task, Future
+from dataclasses import dataclass
+from enum import Enum
+from typing import Tuple, Dict, Any, Set, Optional, Coroutine
 
 
 class Singleton(type):
@@ -17,7 +19,7 @@ class Singleton(type):
         return cls.instance
 
 
-def onlyfirst(*coros, loop=None) -> Future:
+def onlyfirst(*coros: Coroutine, loop: Optional[AbstractEventLoop] = None) -> Future:
     """
     Execute multiple coroutines concurrently, returning only the results of the first execution.
 
@@ -59,6 +61,38 @@ def onlyfirst(*coros, loop=None) -> Future:
     result.add_done_callback(lambda fut: cancel_all_task())
 
     return result
+
+
+class RestartPolicy(int, Enum):
+    NONE = 0
+    FAILURE = -1
+    ALWAYS = 1
+
+
+def create_task(
+    loop: AbstractEventLoop, coroutine: Coroutine, *, restart_on=RestartPolicy.ALWAYS
+) -> None:
+    """
+
+    """
+    task = loop.create_task(coroutine)
+
+    if restart_on == RestartPolicy.FAILURE:
+
+        def callback(fut: Future):
+            if fut.cancelled():
+                return
+            if fut.exception() is not None:
+                create_task(loop, coroutine, __task__=task, restart_on=restart_on)
+
+        task.add_done_callback(callback)
+
+    elif restart_on == RestartPolicy.ALWAYS:
+
+        def callback(fut: Future):
+            create_task(loop, coroutine, __task__=task, restart_on=restart_on)
+
+        task.add_done_callback(callback)
 
 
 class State(dict):

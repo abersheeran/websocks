@@ -3,6 +3,7 @@ import re
 import base64
 import typing
 import ipaddress
+import logging
 from urllib import request
 
 from .utils import Singleton
@@ -24,6 +25,7 @@ whitelist_path = os.path.join(root, "whitelist.txt")
 
 
 cache: set = set()
+logger = logging.getLogger("websocks.rule")
 
 
 class FilterRule(metaclass=Singleton):
