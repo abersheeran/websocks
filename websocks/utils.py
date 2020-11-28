@@ -1,9 +1,11 @@
 import asyncio
+import os
 import threading
+import winreg
 from asyncio import AbstractEventLoop, Task, Future
 from dataclasses import dataclass
 from enum import Enum
-from typing import Tuple, Dict, Any, Set, Optional, Coroutine
+from typing import Tuple, List, Dict, Any, Set, Optional, Coroutine
 
 
 class Singleton(type):
@@ -131,3 +133,45 @@ class State(dict):
 
     def __delattr__(self, name: Any) -> None:
         del self[name]
+
+
+def set_proxy(
+    enable: bool,
+    proxy: str,
+    ignores: List[str] = [
+        "localhost",
+        "127.*",
+        "10.*",
+        "172.16.*",
+        "172.17.*",
+        "172.18.*",
+        "172.19.*",
+        "172.20.*",
+        "172.21.*",
+        "172.22.*",
+        "172.23.*",
+        "172.24.*",
+        "172.25.*",
+        "172.26.*",
+        "172.27.*",
+        "172.28.*",
+        "172.29.*",
+        "172.30.*",
+        "172.31.*",
+        "172.32.*",
+        "192.168.*",
+    ],
+):
+    """
+    设定系统的网络代理
+    """
+    if os.name == "nt":
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            0,
+            winreg.KEY_WRITE,
+        )
+        winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, int(enable))
+        winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy)
+        winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, ";".join(ignores))

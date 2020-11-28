@@ -77,13 +77,13 @@ class FilterRule(metaclass=Singleton):
         不在规则内返回 None.
         """
         result = None
+        result = self._judge_yourself(host)
+        if result is not None:
+            return result
         result = self._judge_whitelist(host)
         if result is not None:
             return result
         result = self._judge_gfwlist(host)
-        if result is not None:
-            return result
-        result = self._judge_yourself(host)
         if result is not None:
             return result
 

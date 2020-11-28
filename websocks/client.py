@@ -6,6 +6,7 @@ import asyncio
 import typing
 import logging
 import signal
+import atexit
 from random import randint
 from string import capwords
 from http import HTTPStatus
@@ -16,7 +17,7 @@ import websockets
 from websockets import WebSocketClientProtocol
 
 from .types import Socket
-from .utils import onlyfirst, create_task
+from .utils import onlyfirst, create_task, set_proxy
 from .config import config, g, TCP
 from . import rule
 
@@ -169,7 +170,7 @@ class WebSocket(Socket):
             self.status = CLOSED
             return b""
 
-        logger.debug(f"<<< {data}")
+        # logger.debug(f"<<< {data}")
 
         if isinstance(data, str):  # websocks
             assert json.loads(data).get("STATUS") == CLOSED
@@ -183,7 +184,7 @@ class WebSocket(Socket):
         except websockets.exceptions.ConnectionClosed:
             self.status = CLOSED
             raise ConnectionResetError("Connection closed.")
-        logger.debug(f">>> {data}")
+        # logger.debug(f">>> {data}")
         return len(data)
 
     async def close(self) -> None:
@@ -223,13 +224,13 @@ class TCPSocket(Socket):
 
     async def recv(self, num: int = 4096) -> bytes:
         data = await self.r.read(num)
-        logger.debug(f"<<< {data}")
+        # logger.debug(f"<<< {data}")
         return data
 
     async def send(self, data: bytes) -> int:
         self.w.write(data)
         await self.w.drain()
-        logger.debug(f">>> {data}")
+        # logger.debug(f">>> {data}")
         return len(data)
 
     async def close(self) -> None:
@@ -372,8 +373,13 @@ class Client:
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
+        set_proxy(True, f"127.0.0.1:{server.sockets[0].getsockname()[1]}")
+        atexit.register(set_proxy, False, "")
         logger.info(f"Proxy Policy: {config.proxy_policy}")
         logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
+        logger.info(
+            f"Seted system proxy: http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+        )
 
         def termina(signo, frame):
             server.close()
