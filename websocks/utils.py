@@ -1,7 +1,6 @@
 import asyncio
 import os
 import threading
-import winreg
 from asyncio import AbstractEventLoop, Task, Future
 from dataclasses import dataclass
 from enum import Enum
@@ -166,6 +165,8 @@ def set_proxy(
     设定系统的网络代理
     """
     if os.name == "nt":
+        import winreg
+
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
