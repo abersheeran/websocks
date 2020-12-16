@@ -2,7 +2,6 @@ import asyncio
 import os
 import threading
 from asyncio import AbstractEventLoop, Task, Future
-from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple, List, Dict, Any, Set, Optional, Coroutine
 
@@ -134,39 +133,39 @@ class State(dict):
         del self[name]
 
 
-def set_proxy(
-    enable: bool,
-    proxy: str,
-    ignores: List[str] = [
-        "localhost",
-        "127.*",
-        "10.*",
-        "172.16.*",
-        "172.17.*",
-        "172.18.*",
-        "172.19.*",
-        "172.20.*",
-        "172.21.*",
-        "172.22.*",
-        "172.23.*",
-        "172.24.*",
-        "172.25.*",
-        "172.26.*",
-        "172.27.*",
-        "172.28.*",
-        "172.29.*",
-        "172.30.*",
-        "172.31.*",
-        "172.32.*",
-        "192.168.*",
-    ],
-):
-    """
-    设定系统的网络代理
-    """
-    if os.name == "nt":
-        import winreg
+if os.name == "nt":
+    import winreg
 
+    def set_proxy(
+        enable: bool,
+        proxy: str,
+        ignores: List[str] = [
+            "localhost",
+            "127.*",
+            "10.*",
+            "172.16.*",
+            "172.17.*",
+            "172.18.*",
+            "172.19.*",
+            "172.20.*",
+            "172.21.*",
+            "172.22.*",
+            "172.23.*",
+            "172.24.*",
+            "172.25.*",
+            "172.26.*",
+            "172.27.*",
+            "172.28.*",
+            "172.29.*",
+            "172.30.*",
+            "172.31.*",
+            "172.32.*",
+            "192.168.*",
+        ],
+    ) -> None:
+        """
+        设定系统的网络代理
+        """
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -176,3 +175,31 @@ def set_proxy(
         winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, int(enable))
         winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy)
         winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, ";".join(ignores))
+        winreg.CloseKey(key)
+
+    def get_proxy() -> Tuple[bool, str, List[str]]:
+        """
+        获取系统的网络代理设置
+        """
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            0,
+            winreg.KEY_READ,
+        )
+        result = (
+            bool(winreg.QueryValueEx(key, "ProxyEnable")[0]),
+            winreg.QueryValueEx(key, "ProxyServer")[0],
+            winreg.QueryValueEx(key, "ProxyOverride")[0].split(";"),
+        )
+        winreg.CloseKey(key)
+        return result
+
+
+else:
+
+    def set_proxy(enable: bool, proxy: str, ignores: List[str] = [],) -> None:
+        pass
+
+    def get_proxy() -> Tuple[bool, str, List[str]]:
+        return True, "", []

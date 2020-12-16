@@ -1,23 +1,22 @@
-import os
 import json
-import time
 import base64
 import asyncio
 import typing
 import logging
 import signal
 import atexit
-from random import randint
+import ipaddress
 from string import capwords
 from http import HTTPStatus
 from urllib.parse import splitport
-from socket import AF_INET, AF_INET6, inet_pton, inet_ntop, socket as RawSocket
 
+import aiodns
 import websockets
 from websockets import WebSocketClientProtocol
 
 from .types import Socket
-from .utils import onlyfirst, create_task, set_proxy
+from .socket import TCPSocket
+from .utils import onlyfirst, create_task, set_proxy, get_proxy
 from .config import config, g, TCP
 from . import rule
 
@@ -48,7 +47,7 @@ class Pool:
         ).decode("utf8")
         self.server = server_config.protocol + "://" + server_config.url
         logger.info(
-            f"Server: "
+            "Server: "
             + server_config.protocol
             + "://"
             + server_config.username
@@ -206,54 +205,52 @@ class WebSocket(Socket):
         return self.status == CLOSED or self.sock.closed
 
 
-class TCPSocket(Socket):
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self.r = reader
-        self.w = writer
-        self.__socket = writer.get_extra_info("socket")
+async def query_ipv4(domain: str) -> typing.Optional[str]:
+    """
+    获取域名的 DNS A 记录
+    """
+    try:
+        _record = await g.resolver.query(domain, "A")
+    except aiodns.error.DNSError:
+        return None
+    if isinstance(_record, list) and _record:
+        record = _record[0]
+    else:
+        record = _record
+    return record.host
 
-    @classmethod
-    async def create_connection(cls, host: str, port: int) -> "TCPSocket":
-        """create a TCP socket"""
-        r, w = await asyncio.open_connection(host=host, port=port)
-        return TCPSocket(r, w)
 
-    @property
-    def socket(self) -> RawSocket:
-        return self.__socket
-
-    async def recv(self, num: int = 4096) -> bytes:
-        data = await self.r.read(num)
-        # logger.debug(f"<<< {data}")
-        return data
-
-    async def send(self, data: bytes) -> int:
-        self.w.write(data)
-        await self.w.drain()
-        # logger.debug(f">>> {data}")
-        return len(data)
-
-    async def close(self) -> None:
-        self.w.close()
-        try:
-            await self.w.wait_closed()
-        except ConnectionError:
-            pass  # nothing to do
-
-    @property
-    def closed(self) -> bool:
-        return self.w.is_closing()
-
-    def __del__(self):
-        self.w.close()
+async def query_ipv6(domain: str) -> typing.Optional[str]:
+    """
+    获取域名 DNS AAAA 记录
+    """
+    try:
+        _record = await g.resolver.query(domain, "AAAA")
+    except aiodns.error.DNSError:
+        return None
+    if isinstance(_record, list) and _record:
+        record = _record[0]
+    else:
+        record = _record
+    return record.host
 
 
 async def connect_remote(host: str, port: int) -> Socket:
     """
     connect remote and return Socket
     """
-    need_proxy = rule.judge(host)
+
+    try:
+        ip = host
+        need_proxy = (
+            False if ipaddress.ip_address(host).is_private else rule.judge(host)
+        )
+    except ValueError:
+        ip = await query_ipv4(host) or await query_ipv6(host) or host
+        need_proxy = rule.judge(host)
+
     rule.logger.debug(f"{host} need proxy? {need_proxy}")
+
     if (
         need_proxy and config.proxy_policy != "DIRECT"
     ) or config.proxy_policy == "PROXY":
@@ -261,12 +258,12 @@ async def connect_remote(host: str, port: int) -> Socket:
     elif need_proxy is None and config.proxy_policy == "AUTO":
         try:
             remote = await asyncio.wait_for(
-                TCPSocket.create_connection(host, port), timeout=2.3
+                TCPSocket.create_connection(ip, port), timeout=2.3
             )
         except (OSError, asyncio.TimeoutError):
             remote = await WebSocket.create_connection(host, port)
     else:
-        remote = await TCPSocket.create_connection(host, port)
+        remote = await TCPSocket.create_connection(ip, port)
     return remote
 
 
@@ -373,8 +370,11 @@ class Client:
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
+
+        _pre_proxy = get_proxy()
         set_proxy(True, f"127.0.0.1:{server.sockets[0].getsockname()[1]}")
-        atexit.register(set_proxy, False, "")
+        atexit.register(set_proxy, *_pre_proxy)
+
         logger.info(f"Proxy Policy: {config.proxy_policy}")
         logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
         logger.info(
@@ -383,7 +383,7 @@ class Client:
 
         def termina(signo, frame):
             server.close()
-            logger.info(f"HTTP Server has closed.")
+            logger.info("HTTP Server has closed.")
             raise SystemExit(0)
 
         signal.signal(signal.SIGINT, termina)

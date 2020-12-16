@@ -2,18 +2,11 @@ import os
 import re
 import base64
 import typing
-import ipaddress
 import logging
 from urllib import request
 
 from .utils import Singleton
 
-# if os.name == "posix":
-#     root = "~"
-# else:
-#     root = os.environ.get("USERPROFILE", "C:")
-#
-# root = os.path.join(root, '.websocks')
 
 root = os.path.dirname(os.path.abspath(__file__))
 
@@ -142,13 +135,6 @@ class FilterRule(metaclass=Singleton):
 def judge(host: str) -> typing.Optional[bool]:
     """检查是否需要走代理"""
     result = None
-
-    try:
-        address = ipaddress.ip_address(host)
-        if address.is_private:
-            return False
-    except ValueError:
-        pass
 
     if host in cache:
         return True

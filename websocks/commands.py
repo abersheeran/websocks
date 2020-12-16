@@ -41,7 +41,9 @@ def main(debug: bool = False) -> None:
     help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
 )
 @click.option(
-    "-S", "--server-url", help="websocket url with username and password",
+    "-S",
+    "--server-url",
+    help="websocket url with username and password",
 )
 @click.option(
     "-R",

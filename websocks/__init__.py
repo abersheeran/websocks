@@ -1,6 +1,3 @@
-import sys
-import asyncio
-
 try:
     import uvloop
 

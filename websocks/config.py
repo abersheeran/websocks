@@ -2,13 +2,14 @@ import re
 import sys
 import json
 from dataclasses import dataclass
-from typing import Sequence, Dict, List
+from typing import Dict, List
 
 if sys.version_info[:2] < (3, 8):
     from typing_extensions import Literal
 else:
     from typing import Literal
 
+import aiodns
 import yaml
 
 from .utils import Singleton, State
@@ -48,7 +49,7 @@ class Config(State, metaclass=Singleton):
     """
     监听端口
     """
-    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW", "PREDNS"]
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"]
     """ 代理策略
     AUTO: 自动判断
     PROXY: 全部代理
@@ -96,3 +97,5 @@ class Config(State, metaclass=Singleton):
 g = State()  # 全局变量
 config = Config()  # 快捷方式 - 配置
 config.set_default_values()
+
+g.resolver = aiodns.DNSResolver()

@@ -12,41 +12,10 @@ from websockets.server import HTTPResponse
 from websockets.http import Headers
 
 from .types import Socket
+from .socket import TCPSocket
 from .utils import onlyfirst
 
 logger: logging.Logger = logging.getLogger("websocks")
-
-
-class TCPSocket(Socket):
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self.r = reader
-        self.w = writer
-
-    @classmethod
-    async def create_connection(cls, host: str, port: int) -> "TCPSocket":
-        """create a TCP socket"""
-        r, w = await asyncio.open_connection(host=host, port=port)
-        return TCPSocket(r, w)
-
-    async def recv(self, num: int = 4096) -> bytes:
-        data = await self.r.read(num)
-        return data
-
-    async def send(self, data: bytes) -> int:
-        self.w.write(data)
-        await self.w.drain()
-        return len(data)
-
-    async def close(self) -> None:
-        self.w.close()
-        try:
-            await self.w.wait_closed()
-        except ConnectionError:
-            pass
-
-    @property
-    def closed(self) -> bool:
-        return self.w.is_closing()
 
 
 async def bridge(alice: Socket, bob: Socket) -> None:
@@ -135,11 +104,11 @@ class Server:
     async def run_server(self) -> typing.NoReturn:
         async with websockets.serve(
             self._link, host=self.host, port=self.port, process_request=self.handshake
-        ) as server:
+        ):
             logger.info(f"WebSocks Server serving on {self.host}:{self.port}")
 
             def termina(signo, frame):
-                logger.info(f"WebSocks Server has closed.")
+                logger.info("WebSocks Server has closed.")
                 raise SystemExit(0)
 
             signal.signal(signal.SIGINT, termina)
