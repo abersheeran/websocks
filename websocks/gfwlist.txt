@@ -1,9 +1,9 @@
 [AutoProxy 0.2.9]
-! Checksum: t4RKHhwsze2iJRtTPNuGmA
+! Checksum: xQvv0Q615iKQW3/VB00oYg
 ! Expires: 6h
 ! Title: GFWList4LL
 ! GFWList with EVERYTHING included
-! Last Modified: Wed, 23 Sep 2020 09:57:31 -0400
+! Last Modified: Sun, 06 Dec 2020 10:43:31 -0500
 !
 ! HomePage: https://github.com/gfwlist/gfwlist
 ! License: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt
@@ -1940,6 +1940,7 @@ alexlur.org
 .alicejapan.co.jp
 aliengu.com
 ||alkasir.com
+||all4mom.org
 ||allconnected.co
 .alldrawnsex.com
 ||alldrawnsex.com
@@ -2028,8 +2029,8 @@ video.ap.org
 ||apiary.io
 .apigee.com
 ||apigee.com
-apk-dl.com
-apkdler.com/apk/view
+||apk-dl.com
+||apkcombo.com
 .apkmonk.com/app
 ||apkplz.com
 apkpure.com
@@ -2448,6 +2449,7 @@ falun.caltech.edu
 .cam4.sg
 .camfrog.com
 ||camfrog.com
+||campaignforuyghurs.org
 ||cams.com
 .cams.org.sg
 canadameet.com
@@ -3473,6 +3475,7 @@ whitebear.freebearblog.org
 .freegao.com
 ||freegao.com
 freeilhamtohti.org
+||freekazakhs.org
 .freekwonpyong.org
 ||saveliuxiaobo.com
 .freelotto.com
@@ -3709,6 +3712,7 @@ gmbd.cn
 |http://www.gmiddle.net
 .gmll.org
 ||gnci.org.hk
+||gnews.org
 go-pki.com
 ||goagent.biz
 ||goagentplus.com
@@ -4022,6 +4026,7 @@ greatfirewallofchina.org
 ||greatroc.tw
 .gts-vpn.com
 |http://gts-vpn.com
+||gtv.org
 .gu-chu-sum.org
 |http://gu-chu-sum.org
 .guaguass.com
@@ -4106,6 +4111,7 @@ have8.com
 |http://hegre-art.com
 ||cdn.helixstudios.net
 ||helplinfen.com
+||helpuyghursnow.org
 ||helloandroid.com
 ||helloqueer.com
 .helloss.pw
@@ -4406,6 +4412,7 @@ ifjc.org
 .ihao.org/dz5
 ||iicns.com
 .ikstar.com
+||ilhamtohtiinstitute.org
 ||illusionfactory.com
 ||ilove80.be
 ||im.tv
@@ -4458,7 +4465,7 @@ website.informer.com
 .inmediahk.net
 ||inmediahk.net
 ||innermongolia.org
-|http://blog.inoreader.com
+||inoreader.com
 .inote.tw
 .insecam.org
 |http://insecam.org
@@ -5061,6 +5068,7 @@ mimiai.net
 .mimivv.com
 .mindrolling.org
 |http://mindrolling.org
+||mingdemedia.org
 .minghui.or.kr
 |http://minghui.or.kr
 minghui.org
@@ -5560,6 +5568,7 @@ paper.li
 paperb.us
 .paradisehill.cc
 .paradisepoker.com
+||parler.com
 ||parsevideo.com
 .partycasino.com
 .partypoker.com
@@ -5958,6 +5967,7 @@ subacme.rerouted.org
 ||reuters.com
 ||reutersmedia.net
 .revleft.com
+||resistchina.org
 retweetist.com
 ||retweetrank.com
 !--connectedchina.reuters.com
@@ -6385,6 +6395,7 @@ sstmlt.net
 .stage64.hk
 ||stage64.hk
 ||standupfortibet.org
+||standwithhk.org
 stanford.edu/group/falun
 usinfo.state.gov
 ||statueofdemocracy.org
@@ -6676,8 +6687,6 @@ tibet.org.tw
 ||tibet-envoy.eu
 .tibet-foundation.org
 .tibet-house-trust.co.uk
-tibet-info.net
-tibet-initiative.de
 ||tibet-initiative.de
 .tibet-munich.de
 .tibet3rdpole.org
@@ -6731,8 +6740,7 @@ tibethouse.org
 .tibetinfonet.net
 .tibetjustice.org
 .tibetkomite.dk
-|http://tibetmuseum.org
-tibetnetwork.org
+||tibetmuseum.org
 ||tibetnetwork.org
 .tibetoffice.ch
 |http://tibetoffice.ch
@@ -6911,6 +6919,7 @@ tuitwit.com
 |http://turbobit.net
 .turbohide.com
 ||turbohide.com
+||turkistantimes.com
 .tushycash.com
 |http://tushycash.com
 ||app.tutanota.com

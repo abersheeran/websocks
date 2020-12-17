@@ -9,7 +9,6 @@ if sys.version_info[:2] < (3, 8):
 else:
     from typing import Literal
 
-import aiodns
 import yaml
 
 from .utils import Singleton, State
@@ -97,5 +96,3 @@ class Config(State, metaclass=Singleton):
 g = State()  # 全局变量
 config = Config()  # 快捷方式 - 配置
 config.set_default_values()
-
-g.resolver = aiodns.DNSResolver()

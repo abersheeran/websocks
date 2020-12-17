@@ -16,7 +16,7 @@ from websockets import WebSocketClientProtocol
 
 from .types import Socket
 from .socket import TCPSocket
-from .utils import onlyfirst, create_task, set_proxy, get_proxy
+from .utils import onlyfirst, keep_task, set_proxy, get_proxy
 from .config import config, g, TCP
 from . import rule
 
@@ -24,19 +24,19 @@ from . import rule
 logger: logging.Logger = logging.getLogger("websocks")
 
 
-class WebsocksError(Exception):
+class WebSocksError(Exception):
     pass
 
 
-class WebsocksImplementationError(WebsocksError):
+class WebSocksImplementationError(WebSocksError):
     pass
 
 
-class WebsocksClosed(ConnectionResetError):
+class WebSocksClosed(ConnectionResetError):
     pass
 
 
-class WebsocksRefused(ConnectionRefusedError):
+class WebSocksRefused(ConnectionRefusedError):
     pass
 
 
@@ -56,7 +56,7 @@ class Pool:
         )
         self.initsize = initsize
         self._freepool = set()
-        create_task(asyncio.get_event_loop(), self.clear_pool())
+        keep_task(asyncio.get_event_loop(), self.clear_pool())
 
     async def clear_pool(self) -> None:
         """
@@ -119,15 +119,11 @@ class Pool:
             logger.error(f"IOError in connect {self.server}")
 
 
-OPENED = "OPENED"
-CLOSED = "CLOSED"
-
-
 class WebSocket(Socket):
     def __init__(self, sock: WebSocketClientProtocol, pool: Pool):
         self.pool = pool
         self.sock = sock
-        self.status = OPENED
+        self.status = 1
 
     @classmethod
     async def create_connection(cls, host: str, port: int) -> "WebSocket":
@@ -138,7 +134,9 @@ class WebSocket(Socket):
                 # websocks shake hand
                 await sock.send(json.dumps({"HOST": host, "PORT": port}))
                 resp = await sock.recv()
-                assert isinstance(resp, str)
+                if not isinstance(resp, str):
+                    raise WebSocksImplementationError()
+
                 if not json.loads(resp)["ALLOW"]:
                     # websocks close
                     await sock.send(json.dumps({"STATUS": "CLOSED"}))
@@ -146,34 +144,30 @@ class WebSocket(Socket):
                         msg = await sock.recv()
                         if isinstance(msg, str):
                             break
-                    assert json.loads(msg)["STATUS"] == CLOSED
+                    assert json.loads(msg)["STATUS"] == "CLOSED"
 
-                    raise WebsocksRefused(
-                        f"Websocks server can't connect {host}:{port}"
+                    raise WebSocksRefused(
+                        f"WebSocks server can't connect {host}:{port}"
                     )
-            except (AssertionError, KeyError):
-                raise WebsocksImplementationError()
+                return WebSocket(sock, pool)
+            except KeyError:
+                raise WebSocksImplementationError()
             except websockets.exceptions.ConnectionClosedError:
                 pass
-            else:
-                break
-        return WebSocket(sock, pool)
 
     async def recv(self, num: int = -1) -> bytes:
-        if self.status == CLOSED:
+        if self.status == 0:
             return b""
 
         try:
             data = await self.sock.recv()
         except websockets.exceptions.ConnectionClosed:
-            self.status = CLOSED
+            self.status = 0
             return b""
 
-        # logger.debug(f"<<< {data}")
-
         if isinstance(data, str):  # websocks
-            assert json.loads(data).get("STATUS") == CLOSED
-            self.status = CLOSED
+            assert json.loads(data).get("STATUS") == "CLOSED"
+            self.status = 0
             return b""
         return data
 
@@ -181,9 +175,9 @@ class WebSocket(Socket):
         try:
             await self.sock.send(data)
         except websockets.exceptions.ConnectionClosed:
-            self.status = CLOSED
+            self.status = 0
             raise ConnectionResetError("Connection closed.")
-        # logger.debug(f">>> {data}")
+
         return len(data)
 
     async def close(self) -> None:
@@ -202,69 +196,7 @@ class WebSocket(Socket):
 
     @property
     def closed(self) -> bool:
-        return self.status == CLOSED or self.sock.closed
-
-
-async def query_ipv4(domain: str) -> typing.Optional[str]:
-    """
-    获取域名的 DNS A 记录
-    """
-    try:
-        _record = await g.resolver.query(domain, "A")
-    except aiodns.error.DNSError:
-        return None
-    if isinstance(_record, list) and _record:
-        record = _record[0]
-    else:
-        record = _record
-    return record.host
-
-
-async def query_ipv6(domain: str) -> typing.Optional[str]:
-    """
-    获取域名 DNS AAAA 记录
-    """
-    try:
-        _record = await g.resolver.query(domain, "AAAA")
-    except aiodns.error.DNSError:
-        return None
-    if isinstance(_record, list) and _record:
-        record = _record[0]
-    else:
-        record = _record
-    return record.host
-
-
-async def connect_remote(host: str, port: int) -> Socket:
-    """
-    connect remote and return Socket
-    """
-
-    try:
-        ip = host
-        need_proxy = (
-            False if ipaddress.ip_address(host).is_private else rule.judge(host)
-        )
-    except ValueError:
-        ip = await query_ipv4(host) or await query_ipv6(host) or host
-        need_proxy = rule.judge(host)
-
-    rule.logger.debug(f"{host} need proxy? {need_proxy}")
-
-    if (
-        need_proxy and config.proxy_policy != "DIRECT"
-    ) or config.proxy_policy == "PROXY":
-        remote = await WebSocket.create_connection(host, port)
-    elif need_proxy is None and config.proxy_policy == "AUTO":
-        try:
-            remote = await asyncio.wait_for(
-                TCPSocket.create_connection(ip, port), timeout=2.3
-            )
-        except (OSError, asyncio.TimeoutError):
-            remote = await WebSocket.create_connection(host, port)
-    else:
-        remote = await TCPSocket.create_connection(ip, port)
-    return remote
+        return self.status == 0 or self.sock.closed
 
 
 async def bridge(s0: Socket, s1: Socket) -> None:
@@ -282,9 +214,15 @@ async def bridge(s0: Socket, s1: Socket) -> None:
 
 
 class Client:
-    def __init__(self, host: str = "0.0.0.0", port: int = 3128) -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 3128,
+        nameservers: typing.List[str] = None,
+    ) -> None:
         self.host = host
         self.port = port
+        self.dns_resolver = aiodns.DNSResolver(nameservers=nameservers)
         if "tcp_server" not in config:
             raise RuntimeError("You need to specify a websocks server.")
         g.pool = Pool(config.tcp_server)
@@ -323,7 +261,7 @@ class Client:
 
         logger.info(f"{capwords(method)} request to ('{host}', {port})")
         try:
-            remote = await connect_remote(host, int(port))
+            remote = await self.connect_remote(host, int(port))
         except Exception:
             return
 
@@ -358,7 +296,7 @@ class Client:
         logger.info(f"Connect request to ('{host}', {port})")
 
         try:
-            remote = await connect_remote(host, int(port))
+            remote = await self.connect_remote(host, int(port))
         except asyncio.TimeoutError:
             await reply(version, HTTPStatus.GATEWAY_TIMEOUT)
         except OSError:
@@ -367,6 +305,69 @@ class Client:
             await reply(version, HTTPStatus.OK)
             await bridge(remote, sock)
             await remote.close()
+
+    async def query_ipv4(self, domain: str) -> typing.Optional[str]:
+        """
+        获取域名的 DNS A 记录
+        """
+        try:
+            _record = await self.dns_resolver.query(domain, "A")
+        except aiodns.error.DNSError:
+            return None
+        if _record == []:
+            return None
+        if isinstance(_record, list):
+            record = _record[0]
+        else:
+            record = _record
+        return record.host
+
+    async def query_ipv6(self, domain: str) -> typing.Optional[str]:
+        """
+        获取域名 DNS AAAA 记录
+        """
+        try:
+            _record = await self.dns_resolver.query(domain, "AAAA")
+        except aiodns.error.DNSError:
+            return None
+        if _record == []:
+            return None
+        if isinstance(_record, list) and _record:
+            record = _record[0]
+        else:
+            record = _record
+        return record.host
+
+    async def connect_remote(self, host: str, port: int) -> Socket:
+        """
+        connect remote and return Socket
+        """
+        try:
+            need_proxy = (
+                False if ipaddress.ip_address(host).is_private else rule.judge(host)
+            )  # 如果 HOST 是 IP 地址且非私有域名则需要查名单
+            ip = host
+        except ValueError:
+            ip = await self.query_ipv4(host) or await self.query_ipv6(host) or host
+            # 如果域名既没有解析到 IPv4 也没有 IPv6 则认定需要代理
+            need_proxy = True if ip == host else rule.judge(host)
+
+        rule.logger.debug(f"{host} need proxy? {need_proxy}")
+
+        if (
+            need_proxy and config.proxy_policy != "DIRECT"
+        ) or config.proxy_policy == "PROXY":
+            remote = await WebSocket.create_connection(host, port)
+        elif need_proxy is None and config.proxy_policy == "AUTO":
+            try:
+                remote = await asyncio.wait_for(
+                    TCPSocket.create_connection(ip, port), timeout=2.3
+                )
+            except (OSError, asyncio.TimeoutError):
+                remote = await WebSocket.create_connection(host, port)
+        else:
+            remote = await TCPSocket.create_connection(ip, port)
+        return remote
 
     async def run_server(self) -> typing.NoReturn:
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
@@ -380,6 +381,7 @@ class Client:
         logger.info(
             f"Seted system proxy: http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
         )
+        logger.info("Used DNS: " + ", ".join(self.dns_resolver.nameservers))
 
         def termina(signo, frame):
             server.close()

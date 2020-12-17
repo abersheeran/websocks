@@ -52,6 +52,7 @@ def main(debug: bool = False) -> None:
     type=click.Path(exists=True, dir_okay=False),
     help="rule file absolute path",
 )
+@click.option("-NS", "--nameserver", multiple=True, help="set dns servers")
 @click.option(
     "-c",
     "--configuration",
@@ -62,6 +63,7 @@ def client(
     proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"],
     rulefile: typing.List[str],
     server_url: str,
+    nameserver: typing.List[str],
     address: typing.Tuple[str, int],
     configuration: str,
 ):
@@ -87,7 +89,7 @@ def client(
 
     FilterRule(config.rulefiles)
 
-    Client(config.host, config.port).run()
+    Client(config.host, config.port, nameserver or None).run()
 
 
 @main.command(help="Download rule file in local")

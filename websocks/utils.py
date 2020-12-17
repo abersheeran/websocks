@@ -64,12 +64,12 @@ def onlyfirst(*coros: Coroutine, loop: Optional[AbstractEventLoop] = None) -> Fu
 
 
 class RestartPolicy(int, Enum):
-    NONE = 0
+    NEVER = 0
     FAILURE = -1
     ALWAYS = 1
 
 
-def create_task(
+def keep_task(
     loop: AbstractEventLoop, coroutine: Coroutine, *, restart_on=RestartPolicy.ALWAYS
 ) -> None:
     """
@@ -83,14 +83,14 @@ def create_task(
             if fut.cancelled():
                 return
             if fut.exception() is not None:
-                create_task(loop, coroutine, __task__=task, restart_on=restart_on)
+                keep_task(loop, coroutine, __task__=task, restart_on=restart_on)
 
         task.add_done_callback(callback)
 
     elif restart_on == RestartPolicy.ALWAYS:
 
         def callback(fut: Future):
-            create_task(loop, coroutine, __task__=task, restart_on=restart_on)
+            keep_task(loop, coroutine, __task__=task, restart_on=restart_on)
 
         task.add_done_callback(callback)
 
