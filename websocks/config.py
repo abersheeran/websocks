@@ -2,7 +2,7 @@ import re
 import sys
 import json
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Optional, Dict, List
 
 if sys.version_info[:2] < (3, 8):
     from typing_extensions import Literal
@@ -59,6 +59,7 @@ class Config(State, metaclass=Singleton):
     """ 自定义规则文件
     每一个字符串都应该是一个规则文件的路径
     """
+    nameservers: Optional[List[str]]
 
     tcp_server: TCP
 
@@ -68,6 +69,7 @@ class Config(State, metaclass=Singleton):
         self.setdefault("proxy_policy", "AUTO")
         self.setdefault("proxy_index", 0)
         self.setdefault("rulefiles", [])
+        self.setdefault("nameservers", None)
 
     def _update(self, data: dict) -> None:
         if "servers" in data:

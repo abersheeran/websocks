@@ -85,11 +85,13 @@ def client(
         new_config["rulefiles"] = rulefile
     if server_url:
         new_config["servers"] = [server_url]
+    if nameserver:
+        new_config["nameservers"] = nameserver
     config._update(new_config)
 
     FilterRule(config.rulefiles)
 
-    Client(config.host, config.port, nameserver or None).run()
+    Client(config.host, config.port, config.nameservers).run()
 
 
 @main.command(help="Download rule file in local")
