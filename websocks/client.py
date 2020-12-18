@@ -47,7 +47,7 @@ class Pool:
         ).decode("utf8")
         self.server = server_config.protocol + "://" + server_config.url
         logger.info(
-            "Server: "
+            "Remote Server: "
             + server_config.protocol
             + "://"
             + server_config.username
@@ -199,20 +199,6 @@ class WebSocket(Socket):
         return self.status == 0 or self.sock.closed
 
 
-async def bridge(s0: Socket, s1: Socket) -> None:
-    async def _(sender: Socket, receiver: Socket):
-        try:
-            while True:
-                data = await sender.recv(8192)
-                if not data:
-                    break
-                await receiver.send(data)
-        except OSError:
-            pass
-
-    await onlyfirst(_(s0, s1), _(s1, s0))
-
-
 class Client:
     def __init__(
         self,
@@ -230,17 +216,25 @@ class Client:
     async def dispatch(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        firstline = await reader.readline()
-        for index, data in enumerate(firstline):
+        first_packet = await reader.read(2048)
+        for index, data in enumerate(first_packet):
             reader._buffer.insert(index, data)
-        method = firstline.decode("ascii").split(" ", maxsplit=1)[0]
-        sock = TCPSocket(reader, writer)
-        try:
-            await getattr(self, method.lower(), self.default)(sock)
-        finally:
-            await sock.close()
 
-    async def default(self, sock: TCPSocket) -> None:
+        if first_packet[0] == 4:  # Socks4
+            handler = getattr(self, "socks4")
+        elif first_packet[0] == 5:  # Socks5
+            handler = getattr(self, "socks5")
+        else:  # HTTP
+            method = first_packet.split(b" ", maxsplit=1)[0].decode("ascii")
+            handler = getattr(self, "http_" + method.lower(), self.http_default)
+
+        try:
+            tcp = TCPSocket(reader, writer)
+            await handler(tcp)
+        finally:
+            await tcp.close()
+
+    async def http_default(self, sock: TCPSocket) -> None:
         firstline = await sock.r.readline()
         if firstline == b"":
             return
@@ -255,29 +249,33 @@ class Client:
             urlpath = ""
         urlpath = "/" + urlpath
 
-        host, port = splitport(netloc)
-        if port is None:
-            port = {"http": 80, "https": 443}[scheme]
+        dsthost, dstport = splitport(netloc)
+        if dstport is None:
+            dstport = {"http": 80, "https": 443}[scheme]
 
-        logger.info(f"{capwords(method)} request to ('{host}', {port})")
+        logger.debug(f"Request HTTP_{capwords(method)} ('{dsthost}', {dstport})")
+
         try:
-            remote = await self.connect_remote(host, int(port))
-        except Exception:
-            return
+            remote = await self.connect_remote(dsthost, int(dstport))
+        except asyncio.TimeoutError:
+            logger.info(f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) × (timeout)")
+        except OSError:
+            logger.info(f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) × (general)")
+        else:
+            logger.info(f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) √")
+            for index, data in enumerate(
+                (" ".join([method, urlpath, version]) + "\r\n").encode("ascii")
+            ):
+                sock.r._buffer.insert(index, data)
+            await self.bridge(remote, sock)
+            await remote.close()
 
-        for index, data in enumerate(
-            (" ".join([method, urlpath, version]) + "\r\n").encode("ascii")
-        ):
-            sock.r._buffer.insert(index, data)
-        await bridge(remote, sock)
-        await remote.close()
-
-    async def connect(self, sock: TCPSocket) -> None:
+    async def http_connect(self, sock: TCPSocket) -> None:
         async def reply(http_version: str, status_code: HTTPStatus) -> None:
             await sock.send(
                 (
                     f"{http_version} {status_code.value} {status_code.phrase}\r\n"
-                    "Server: O-O\r\n"
+                    "Server: WebSocks created by Aber\r\n"
                     "Content-Length: 0\r\n"
                     "\r\n"
                 ).encode("ascii")
@@ -292,18 +290,48 @@ class Client:
         method, hostport, version = (
             raw_request.splitlines()[0].decode("ascii").split(" ")
         )
-        host, port = hostport.split(":")
-        logger.info(f"Connect request to ('{host}', {port})")
+        dsthost, dstport = hostport.split(":")
+        logger.debug(f"Request HTTP_Connect ('{dsthost}', {dstport})")
 
         try:
-            remote = await self.connect_remote(host, int(port))
+            remote = await self.connect_remote(dsthost, int(dstport))
         except asyncio.TimeoutError:
             await reply(version, HTTPStatus.GATEWAY_TIMEOUT)
+            logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) × (timeout)")
         except OSError:
             await reply(version, HTTPStatus.BAD_GATEWAY)
+            logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) × (general)")
         else:
             await reply(version, HTTPStatus.OK)
-            await bridge(remote, sock)
+            logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) √")
+            await self.bridge(remote, sock)
+            await remote.close()
+
+    async def socks4(self, sock: TCPSocket) -> None:
+        data = await sock.recv()
+        if data[1] != 1:  # 仅支持 CONNECT 请求
+            await sock.send(b"\x00\x91")
+            await sock.send(data[2:8])
+            return None
+        dstport = int.from_bytes(data[2:4], "big")
+        dsthost = ".".join([str(i) for i in data[4:8]])
+        if sum([i for i in data[4:8]]) == data[7]:  # Socks4A
+            while data.count(b"\x00") < 2:
+                data += await sock.recv()
+            userid, dsthost = data[8:-1].split(b"\x00")
+        logger.debug(f"Request Socks_Connect ('{dsthost}', {dstport})")
+
+        try:
+            remote = await self.connect_remote(dsthost, int(dstport))
+        except Exception:
+            await sock.send(b"\x00\x91")
+            await sock.send(data[2:8])
+            logger.info(f"Socks_Connect ('{dsthost}', {dstport}) ×")
+        else:
+            await sock.send(b"\x00\x90")
+            await sock.send(data[2:8])
+            logger.info(f"Socks_Connect ('{dsthost}', {dstport}) √")
+            await self.bridge(remote, sock)
             await remote.close()
 
     async def query_ipv4(self, domain: str) -> typing.Optional[str]:
@@ -369,19 +397,33 @@ class Client:
             remote = await TCPSocket.create_connection(ip, port)
         return remote
 
+    @staticmethod
+    async def bridge(s0: Socket, s1: Socket) -> None:
+        async def _(sender: Socket, receiver: Socket):
+            try:
+                while True:
+                    data = await sender.recv(8192)
+                    if not data:
+                        break
+                    await receiver.send(data)
+            except OSError:
+                pass
+
+        await onlyfirst(_(s0, s1), _(s1, s0))
+
     async def run_server(self) -> typing.NoReturn:
+        logger.info("Used DNS: " + ", ".join(self.dns_resolver.nameservers))
+        logger.info("Proxy Policy: " + config.proxy_policy)
+
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
+        logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
 
         _pre_proxy = get_proxy()
         set_proxy(True, f"127.0.0.1:{server.sockets[0].getsockname()[1]}")
         atexit.register(set_proxy, *_pre_proxy)
-
-        logger.info(f"Proxy Policy: {config.proxy_policy}")
-        logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
         logger.info(
-            f"Seted system proxy: http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+            f"Seted system proxy: all://127.0.0.1:{server.sockets[0].getsockname()[1]}"
         )
-        logger.info("Used DNS: " + ", ".join(self.dns_resolver.nameservers))
 
         def termina(signo, frame):
             server.close()
