@@ -24,6 +24,6 @@ RUN rm -f pyproject.toml poetry.lock
 
 COPY --from=build /app/setup.py .
 
-RUN apk add --no-cache --virtual .build-deps gcc libc-dev make \
+RUN apk add --no-cache --virtual .build-deps gcc libc-dev make libffi-dev \
     && pip3 install . \
     && apk del .build-deps
