@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from socket import socket as RawSocket
 
@@ -11,7 +13,7 @@ class TCPSocket(Socket):
         self.__socket = writer.get_extra_info("socket")
 
     @classmethod
-    async def create_connection(cls, host: str, port: int) -> "TCPSocket":
+    async def create_connection(cls, host: str, port: int) -> TCPSocket:
         """create a TCP socket"""
         r, w = await asyncio.open_connection(host=host, port=port)
         return TCPSocket(r, w)

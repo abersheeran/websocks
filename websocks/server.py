@@ -14,6 +14,7 @@ from websockets.http import Headers
 from .types import Socket
 from .socket import TCPSocket
 from .utils import onlyfirst
+from .exceptions import WebSocksImplementationError
 
 logger: logging.Logger = logging.getLogger("websocks")
 
@@ -51,7 +52,8 @@ class Server:
                 websocks_has_closed = False
 
                 data = await sock.recv()
-                assert isinstance(data, str)
+                if not isinstance(data, str):
+                    raise WebSocksImplementationError()
                 request = json.loads(data)
                 try:
                     remote = await TCPSocket.create_connection(
@@ -79,9 +81,10 @@ class Server:
                         msg = await sock.recv()
                         if isinstance(msg, str):
                             break
-                    assert json.loads(msg)["STATUS"] == "CLOSED"
+                    if json.loads(msg)["STATUS"] != "CLOSED":
+                        raise WebSocksImplementationError()
 
-        except (AssertionError, KeyError):
+        except (WebSocksImplementationError, KeyError):
             ...  # websocks implemented error
         except websockets.exceptions.ConnectionClosed:
             ...

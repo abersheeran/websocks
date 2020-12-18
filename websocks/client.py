@@ -16,28 +16,13 @@ from websockets import WebSocketClientProtocol
 
 from .types import Socket
 from .socket import TCPSocket
+from .exceptions import WebSocksImplementationError, WebSocksRefused
 from .utils import onlyfirst, keep_task, set_proxy, get_proxy
 from .config import config, g, TCP
 from . import rule
 
 
 logger: logging.Logger = logging.getLogger("websocks")
-
-
-class WebSocksError(Exception):
-    pass
-
-
-class WebSocksImplementationError(WebSocksError):
-    pass
-
-
-class WebSocksClosed(ConnectionResetError):
-    pass
-
-
-class WebSocksRefused(ConnectionRefusedError):
-    pass
 
 
 class Pool:
@@ -144,7 +129,8 @@ class WebSocket(Socket):
                         msg = await sock.recv()
                         if isinstance(msg, str):
                             break
-                    assert json.loads(msg)["STATUS"] == "CLOSED"
+                    if json.loads(msg)["STATUS"] != "CLOSED":
+                        raise WebSocksImplementationError()
 
                     raise WebSocksRefused(
                         f"WebSocks server can't connect {host}:{port}"
@@ -166,7 +152,8 @@ class WebSocket(Socket):
             return b""
 
         if isinstance(data, str):  # websocks
-            assert json.loads(data).get("STATUS") == "CLOSED"
+            if json.loads(data).get("STATUS") != "CLOSED":
+                raise WebSocksImplementationError()
             self.status = 0
             return b""
         return data
