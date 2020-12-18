@@ -375,9 +375,12 @@ class Client:
             remote = await WebSocket.create_connection(host, port)
         elif need_proxy is None and config.proxy_policy == "AUTO":
             try:
-                remote = await asyncio.wait_for(
+                remote: TCPSocket = await asyncio.wait_for(
                     TCPSocket.create_connection(ip, port), timeout=2.3
                 )
+                await asyncio.sleep(0.001)
+                if remote.closed:  # 存在连接后立刻 reset 的情况
+                    raise ConnectionResetError()
             except (OSError, asyncio.TimeoutError):
                 remote = await WebSocket.create_connection(host, port)
         else:
