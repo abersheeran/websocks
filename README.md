@@ -1,7 +1,9 @@
 # websocks
 
 [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/abersheeran/websocks?style=flat-square)](https://hub.docker.com/r/abersheeran/websocks)
+![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/abersheeran/websocks)
 ![Docker Pulls](https://img.shields.io/docker/pulls/abersheeran/websocks)
+
 ![PyPi](https://img.shields.io/pypi/v/websocks?color=green)
 [![PyPi Downloads](https://pepy.tech/badge/websocks)](https://pepy.tech/project/websocks)
 [![PyPi Downloads](https://pepy.tech/badge/websocks/week)](https://pepy.tech/project/websocks/week)
