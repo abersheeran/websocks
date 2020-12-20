@@ -305,19 +305,62 @@ class Client:
         if sum([i for i in data[4:8]]) == data[7]:  # Socks4A
             while data.count(b"\x00") < 2:
                 data += await sock.recv()
-            userid, dsthost = data[8:-1].split(b"\x00")
-        logger.debug(f"Request Socks_Connect ('{dsthost}', {dstport})")
+            userid, raw_dsthost = data[8:-1].split(b"\x00")
+            dsthost = raw_dsthost.decode("ascii")
+        logger.debug(f"Request Socks4_Connect ('{dsthost}', {dstport})")
 
         try:
-            remote = await self.connect_remote(dsthost, int(dstport))
+            remote = await self.connect_remote(dsthost, dstport)
         except Exception:
             await sock.send(b"\x00\x91")
             await sock.send(data[2:8])
-            logger.info(f"Socks_Connect ('{dsthost}', {dstport}) ×")
+            logger.info(f"Socks4_Connect ('{dsthost}', {dstport}) ×")
         else:
             await sock.send(b"\x00\x90")
             await sock.send(data[2:8])
-            logger.info(f"Socks_Connect ('{dsthost}', {dstport}) √")
+            logger.info(f"Socks4_Connect ('{dsthost}', {dstport}) √")
+            await self.bridge(remote, sock)
+            await remote.close()
+
+    async def socks5(self, sock: TCPSocket) -> None:
+        data = await sock.recv()
+        method_count = data[2]
+        while len(data) < method_count + 2:
+            data += await sock.recv()
+        if b"\x00" not in data[2:]:  # 仅允许无身份验证
+            await sock.send(b"\x05\xFF")
+            return None
+        await sock.send(b"\x05\x00")
+        data = await sock.recv()
+        if data[1] != 1:  # 仅允许 CONNECT 请求
+            await sock.send(b"\x05\x07\x00")
+            await sock.send(data[3:])
+            return
+        if data[3] == 1:  # IPv4
+            dsthost = ".".join([str(i) for i in data[4:8]])
+            dstport = int.from_bytes(data[8:10], "big")
+        elif data[3] == 3:  # domain
+            dsthost = data[5 : 5 + data[4]].decode("ascii")
+            dstport = int.from_bytes(data[5 + data[4] : 5 + data[4] + 2], "big")
+        elif data[3] == 4:  # IPv6
+            dsthost = ":".join([data[i : i + 2].hex() for i in range(4, 20, 2)])
+            dstport = int.from_bytes(data[20:22], "big")
+        else:  # 无效的 ATYP
+            await sock.send(b"\x05\x08\x00")
+            await sock.send(data[3:])
+            return
+        logger.debug(f"Request Socks5_Connect ('{dsthost}', {dstport})")
+
+        try:
+            remote = await self.connect_remote(dsthost, dstport)
+        except Exception:
+            await sock.send(b"\x05\x01\x00")
+            await sock.send(data[3:])
+            logger.info(f"Socks5_Connect ('{dsthost}', {dstport}) ×")
+        else:
+            await sock.send(b"\x05\x00\x00")
+            await sock.send(data[3:])
+            logger.info(f"Socks5_Connect ('{dsthost}', {dstport}) √")
             await self.bridge(remote, sock)
             await remote.close()
 
@@ -406,14 +449,13 @@ class Client:
         logger.info("Proxy Policy: " + config.proxy_policy)
 
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
-        logger.info(f"HTTP Server serveing on {server.sockets[0].getsockname()}")
+        server_address = server.sockets[0].getsockname()
+        logger.info(f"HTTP/Socks Server serveing on {server_address}")
 
         _pre_proxy = get_proxy()
-        set_proxy(True, f"127.0.0.1:{server.sockets[0].getsockname()[1]}")
+        set_proxy(True, f"socks://127.0.0.1:{server_address[1]}")
         atexit.register(set_proxy, *_pre_proxy)
-        logger.info(
-            f"Seted system proxy: all://127.0.0.1:{server.sockets[0].getsockname()[1]}"
-        )
+        logger.info(f"Seted system proxy: 127.0.0.1:{server_address[1]}")
 
         def termina(signo, frame):
             server.close()
