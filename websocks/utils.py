@@ -2,13 +2,15 @@ import asyncio
 import os
 import threading
 from asyncio import AbstractEventLoop, Task, Future
-from enum import Enum
-from typing import Tuple, List, Dict, Any, Set, Optional, Coroutine
+from typing import Tuple, Dict, Any, Set, Optional, Coroutine
 
 
 class Singleton(type):
     def __init__(
-        cls, name: str, bases: Tuple[type], namespace: Dict[str, Any],
+        cls,
+        name: str,
+        bases: Tuple[type],
+        namespace: Dict[str, Any],
     ) -> None:
         cls.instance = None
         super().__init__(name, bases, namespace)
@@ -23,7 +25,7 @@ def onlyfirst(*coros: Coroutine, loop: Optional[AbstractEventLoop] = None) -> Fu
     """
     Execute multiple coroutines concurrently, returning only the results of the first execution.
 
-    When one is completed, the execution of other coroutines will be canceled.
+    When one is completed, the execution of other coroutines will be canceled.
     """
     loop = loop or asyncio.get_running_loop()
     tasks: Set[Task] = set()
@@ -63,36 +65,16 @@ def onlyfirst(*coros: Coroutine, loop: Optional[AbstractEventLoop] = None) -> Fu
     return result
 
 
-class RestartPolicy(int, Enum):
-    NEVER = 0
-    FAILURE = -1
-    ALWAYS = 1
-
-
-def keep_task(
-    loop: AbstractEventLoop, coroutine: Coroutine, *, restart_on=RestartPolicy.ALWAYS
-) -> None:
+def keep_task(loop: AbstractEventLoop, coroutine: Coroutine) -> None:
     """
-
+    keep task always running
     """
     task = loop.create_task(coroutine)
 
-    if restart_on == RestartPolicy.FAILURE:
+    def callback(fut: Future):
+        keep_task(loop, coroutine)
 
-        def callback(fut: Future):
-            if fut.cancelled():
-                return
-            if fut.exception() is not None:
-                keep_task(loop, coroutine, __task__=task, restart_on=restart_on)
-
-        task.add_done_callback(callback)
-
-    elif restart_on == RestartPolicy.ALWAYS:
-
-        def callback(fut: Future):
-            keep_task(loop, coroutine, __task__=task, restart_on=restart_on)
-
-        task.add_done_callback(callback)
+    task.add_done_callback(callback)
 
 
 class State(dict):
@@ -136,33 +118,7 @@ class State(dict):
 if os.name == "nt":
     import winreg
 
-    def set_proxy(
-        enable: bool,
-        proxy: str,
-        ignores: List[str] = [
-            "localhost",
-            "127.*",
-            "10.*",
-            "172.16.*",
-            "172.17.*",
-            "172.18.*",
-            "172.19.*",
-            "172.20.*",
-            "172.21.*",
-            "172.22.*",
-            "172.23.*",
-            "172.24.*",
-            "172.25.*",
-            "172.26.*",
-            "172.27.*",
-            "172.28.*",
-            "172.29.*",
-            "172.30.*",
-            "172.31.*",
-            "172.32.*",
-            "192.168.*",
-        ],
-    ) -> None:
+    def set_proxy(enable: bool, proxy: str) -> None:
         """
         设定系统的网络代理
         """
@@ -174,10 +130,9 @@ if os.name == "nt":
         )
         winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, int(enable))
         winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy)
-        winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, ";".join(ignores))
         winreg.CloseKey(key)
 
-    def get_proxy() -> Tuple[bool, str, List[str]]:
+    def get_proxy() -> Tuple[bool, str]:
         """
         获取系统的网络代理设置
         """
@@ -190,7 +145,6 @@ if os.name == "nt":
         result = (
             bool(winreg.QueryValueEx(key, "ProxyEnable")[0]),
             winreg.QueryValueEx(key, "ProxyServer")[0],
-            winreg.QueryValueEx(key, "ProxyOverride")[0].split(";"),
         )
         winreg.CloseKey(key)
         return result
@@ -198,8 +152,8 @@ if os.name == "nt":
 
 else:
 
-    def set_proxy(enable: bool, proxy: str, ignores: List[str] = [],) -> None:
+    def set_proxy(enable: bool, proxy: str) -> None:
         pass
 
-    def get_proxy() -> Tuple[bool, str, List[str]]:
-        return True, "", []
+    def get_proxy() -> Tuple[bool, str]:
+        return True, ""
