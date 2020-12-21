@@ -17,7 +17,7 @@ from websockets import WebSocketClientProtocol
 from .types import Socket
 from .socket import TCPSocket
 from .exceptions import WebSocksImplementationError, WebSocksRefused
-from .utils import onlyfirst, keep_task, set_proxy, get_proxy
+from .utils import onlyfirst, set_proxy, get_proxy
 from .config import config, g, TCP
 from . import rule
 
@@ -41,7 +41,7 @@ class Pool:
         )
         self.initsize = initsize
         self._freepool = set()
-        keep_task(asyncio.get_event_loop(), self.clear_pool())
+        asyncio.get_event_loop().create_task(self.clear_pool())
 
     async def clear_pool(self) -> None:
         """

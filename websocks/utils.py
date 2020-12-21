@@ -65,18 +65,6 @@ def onlyfirst(*coros: Coroutine, loop: Optional[AbstractEventLoop] = None) -> Fu
     return result
 
 
-def keep_task(loop: AbstractEventLoop, coroutine: Coroutine) -> None:
-    """
-    keep task always running
-    """
-    task = loop.create_task(coroutine)
-
-    def callback(fut: Future):
-        keep_task(loop, coroutine)
-
-    task.add_done_callback(callback)
-
-
 class State(dict):
     """
     An object that can be used to store arbitrary state.
