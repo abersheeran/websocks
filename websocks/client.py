@@ -455,9 +455,10 @@ class Client:
         logger.info(f"HTTP/Socks Server serveing on {server_address}")
 
         _pre_proxy = get_proxy()
-        set_proxy(True, f"socks://127.0.0.1:{server_address[1]}")
+        proxy_server = f"http://127.0.0.1:{server_address[1]}"
+        set_proxy(True, proxy_server)
         atexit.register(set_proxy, *_pre_proxy)
-        logger.info(f"Seted system proxy: 127.0.0.1:{server_address[1]}")
+        logger.info(f"Seted system proxy: {proxy_server}")
 
         def termina(signo, frame):
             server.close()
