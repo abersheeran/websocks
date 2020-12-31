@@ -130,12 +130,15 @@ if os.name == "nt":
             0,
             winreg.KEY_READ,
         )
-        result = (
-            bool(winreg.QueryValueEx(key, "ProxyEnable")[0]),
-            winreg.QueryValueEx(key, "ProxyServer")[0],
-        )
-        winreg.CloseKey(key)
-        return result
+        try:
+            return (
+                bool(winreg.QueryValueEx(key, "ProxyEnable")[0]),
+                winreg.QueryValueEx(key, "ProxyServer")[0],
+            )
+        except FileNotFoundError:
+            return False, ""
+        finally:
+            winreg.CloseKey(key)
 
 
 else:
