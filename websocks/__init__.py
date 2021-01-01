@@ -1,3 +1,8 @@
+import sys
+import platform
+import selectors
+import asyncio
+
 try:
     import uvloop
 
