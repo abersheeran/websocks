@@ -56,7 +56,7 @@ def main(debug: bool = False) -> None:
 @click.option(
     "-c",
     "--configuration",
-    default=os.path.join(os.environ["HOME"], ".websocks", "config.yml"),
+    default=os.path.join(os.path.expanduser("~/.websocks"), "config.yml"),
 )
 @click.argument("address", type=click.Tuple([str, int]), default=("127.0.0.1", 3128))
 def client(
