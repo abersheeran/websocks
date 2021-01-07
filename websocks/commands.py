@@ -122,7 +122,7 @@ def download(namelist: typing.List[str]):
 @click.option(
     "-c",
     "--configuration",
-    default=os.path.join(os.environ["HOME"], ".websocks", "config.yml"),
+    default=os.path.join(os.path.expanduser("~/.websocks"), "config.yml"),
 )
 @click.argument("host")
 def check(
