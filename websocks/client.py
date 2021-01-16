@@ -24,7 +24,7 @@ from websockets import WebSocketClientProtocol
 from .types import Socket
 from .socket import TCPSocket
 from .exceptions import WebSocksImplementationError, WebSocksRefused
-from .utils import onlyfirst, set_proxy, get_proxy
+from .utils import onlyfirst, set_proxy
 from .config import convert_tcp_url, TCP
 from . import rule
 

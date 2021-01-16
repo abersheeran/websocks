@@ -104,7 +104,7 @@ class FilterRule(metaclass=Singleton):
         if line.startswith("!"):
             return None
         if line[:2] == "||":
-            if host.startswith(line[2:]):
+            if host.endswith(line[2:]):
                 return True
         elif line[0] == ".":
             if host.endswith(line):
