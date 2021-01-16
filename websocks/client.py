@@ -1,14 +1,21 @@
+from __future__ import annotations
+
+import sys
 import json
 import base64
 import asyncio
 import typing
 import logging
-import signal
 import atexit
 import ipaddress
 from string import capwords
 from http import HTTPStatus
 from urllib.parse import splitport
+
+if sys.version_info[:2] < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 import aiodns
 import websockets
@@ -18,15 +25,14 @@ from .types import Socket
 from .socket import TCPSocket
 from .exceptions import WebSocksImplementationError, WebSocksRefused
 from .utils import onlyfirst, set_proxy, get_proxy
-from .config import config, g, TCP
+from .config import convert_tcp_url, TCP
 from . import rule
 
-
-logger: logging.Logger = logging.getLogger("websocks")
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Pool:
-    def __init__(self, server_config: TCP, initsize: int = 7) -> None:
+    def __init__(self, server_config: TCP, init_size: int = 7) -> None:
         self.get_credentials = lambda: "Basic " + base64.b64encode(
             f"{server_config.username}:{server_config.password}".encode("utf8")
         ).decode("utf8")
@@ -39,8 +45,8 @@ class Pool:
             + "@"
             + server_config.url
         )
-        self.initsize = initsize
-        self._freepool = set()
+        self.init_size = init_size
+        self._free_pool = set()
         asyncio.get_event_loop().create_task(self.clear_pool())
 
     async def clear_pool(self) -> None:
@@ -50,16 +56,16 @@ class Pool:
         while True:
             await asyncio.sleep(7)
 
-            for sock in tuple(self._freepool):
+            for sock in tuple(self._free_pool):
                 if sock.closed:
                     await sock.close()
-                    self._freepool.remove(sock)
+                    self._free_pool.remove(sock)
 
-            while len(self._freepool) > self.initsize * 2:
-                sock = self._freepool.pop()
+            while len(self._free_pool) > self.init_size * 2:
+                sock = self._free_pool.pop()
                 await sock.close()
 
-            while len(self._freepool) < self.initsize:
+            while len(self._free_pool) < self.init_size:
                 await self._create()
 
     async def acquire(self) -> WebSocketClientProtocol:
@@ -68,11 +74,11 @@ class Pool:
         """
         while True:
             try:
-                sock = self._freepool.pop()
+                sock = self._free_pool.pop()
                 if sock.closed:
                     await sock.close()
                     continue
-                if self.initsize > len(self._freepool):
+                if self.init_size > len(self._free_pool):
                     asyncio.create_task(self._create())
                 return sock
             except KeyError:
@@ -87,7 +93,7 @@ class Pool:
         if sock.closed:
             await sock.close()
             return
-        self._freepool.add(sock)
+        self._free_pool.add(sock)
 
     async def _create(self) -> None:
         """
@@ -97,22 +103,23 @@ class Pool:
             sock = await websockets.connect(
                 self.server, extra_headers={"Authorization": self.get_credentials()}
             )
-            self._freepool.add(sock)
+            self._free_pool.add(sock)
         except websockets.exceptions.InvalidStatusCode as e:
             logger.error(str(e))
-        except OSError:
+        except IOError:
             logger.error(f"IOError in connect {self.server}")
 
 
 class WebSocket(Socket):
-    def __init__(self, sock: WebSocketClientProtocol, pool: Pool):
-        self.pool = pool
+    pool: Pool
+
+    def __init__(self, sock: WebSocketClientProtocol):
         self.sock = sock
         self.status = 1
 
     @classmethod
-    async def create_connection(cls, host: str, port: int) -> "WebSocket":
-        pool = g.pool
+    async def create_connection(cls, host: str, port: int) -> WebSocket:
+        pool = cls.pool
         while True:
             try:
                 sock = await pool.acquire()
@@ -135,7 +142,7 @@ class WebSocket(Socket):
                     raise WebSocksRefused(
                         f"WebSocks server can't connect {host}:{port}"
                     )
-                return WebSocket(sock, pool)
+                return WebSocket(sock)
             except KeyError:
                 raise WebSocksImplementationError()
             except websockets.exceptions.ConnectionClosedError:
@@ -189,16 +196,18 @@ class WebSocket(Socket):
 class Client:
     def __init__(
         self,
-        host: str = "0.0.0.0",
-        port: int = 3128,
+        client_host: str,
+        client_port: int,
+        tcp_server: str,
         nameservers: typing.List[str] = None,
+        proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "BLACK", "WHITE"] = "AUTO",
     ) -> None:
-        self.host = host
-        self.port = port
+        self.host = client_host
+        self.port = client_port
         self.dns_resolver = aiodns.DNSResolver(nameservers=nameservers)
-        if "tcp_server" not in config:
-            raise RuntimeError("You need to specify a websocks server.")
-        g.pool = Pool(config.tcp_server)
+        self.proxy_policy = proxy_policy
+
+        WebSocket.pool = Pool(TCP(**convert_tcp_url(tcp_server)))
 
     async def dispatch(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -402,25 +411,32 @@ class Client:
         """
         connect remote and return Socket
         """
-        try:
-            need_proxy = (
-                False if ipaddress.ip_address(host).is_private else rule.judge(host)
-            )  # 如果 HOST 是 IP 地址且非私有域名则需要查名单
-            ip = host
-        except ValueError:
-            ip = await self.query_ipv4(host) or await self.query_ipv6(host) or host
-            # 如果域名既没有解析到 IPv4 也没有 IPv6 则认定需要代理
-            need_proxy = True if ip == host else rule.judge(host)
+        if self.proxy_policy not in ("PROXY", "DIRECT"):
+            try:
+                need_proxy = (
+                    False if ipaddress.ip_address(host).is_private else rule.judge(host)
+                )  # 如果 HOST 是 IP 地址且非私有域名则需要查名单
+                ip = host
+            except ValueError:
+                ip = await self.query_ipv4(host) or await self.query_ipv6(host) or host
+                # 如果域名既没有解析到 IPv4 也没有 IPv6 则认定需要代理
+                need_proxy = True if ip == host else rule.judge(host)
+            # 黑名单代理策略时: 未知均不代理
+            # 白名单代理策略时: 未知均需代理
+            if self.proxy_policy not in ("BLACK", "WHITE"):
+                need_proxy = (
+                    self.proxy_policy == "WHITE" if need_proxy is None else need_proxy
+                )
+        else:
+            need_proxy = self.proxy_policy == "PROXY"
 
         rule.logger.debug(f"{host} need proxy? {need_proxy}")
 
-        if (
-            need_proxy and config.proxy_policy != "DIRECT"
-        ) or config.proxy_policy == "PROXY":
+        if need_proxy:
             remote = await WebSocket.create_connection(host, port)
-        elif need_proxy is None and config.proxy_policy == "AUTO":
+        elif need_proxy is None:
             try:
-                remote: TCPSocket = await asyncio.wait_for(
+                remote: Socket = await asyncio.wait_for(
                     TCPSocket.create_connection(ip, port), timeout=2.3
                 )
                 await asyncio.sleep(0.001)
@@ -448,28 +464,18 @@ class Client:
 
     async def run_server(self) -> typing.NoReturn:
         logger.info("Used DNS: " + ", ".join(self.dns_resolver.nameservers))
-        logger.info("Proxy Policy: " + config.proxy_policy)
+        logger.info("Proxy Policy: " + self.proxy_policy)
 
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
         server_address = server.sockets[0].getsockname()
-        logger.info(f"HTTP/Socks Server serveing on {server_address}")
+        logger.info(f"HTTP/Socks Server serving on {server_address}")
 
-        _pre_proxy = get_proxy()
         proxy_server = f"http://127.0.0.1:{server_address[1]}"
         set_proxy(True, proxy_server)
-        atexit.register(set_proxy, *_pre_proxy)
-        logger.info(f"Seted system proxy: {proxy_server}")
+        atexit.register(set_proxy, False, "")
+        logger.info(f"Set system proxy: {proxy_server}")
 
-        def termina(signo, frame):
-            server.close()
-            logger.info("HTTP Server has closed.")
-            raise SystemExit(0)
-
-        signal.signal(signal.SIGINT, termina)
-        signal.signal(signal.SIGTERM, termina)
-
-        while True:
-            await asyncio.sleep(1)
+        await server.serve_forever()
 
     def run(self) -> None:
         loop = asyncio.get_event_loop()

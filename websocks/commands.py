@@ -1,4 +1,3 @@
-import os
 import sys
 import asyncio
 import typing
@@ -14,8 +13,6 @@ import click
 from .rule import FilterRule, judge
 from .client import Client
 from .server import Server
-from .config import config
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,61 +34,42 @@ def main(debug: bool = False) -> None:
     "-P",
     "--proxy-policy",
     default="AUTO",
-    type=click.Choice(["AUTO", "PROXY", "DIRECT", "GFW"]),
-    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
+    type=click.Choice(["AUTO", "PROXY", "DIRECT", "BLACK", "WHITE"]),
+    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; BLACK: only proxy black rules;",
 )
 @click.option(
-    "-S",
-    "--server-url",
+    "-T",
+    "--tcp-server",
     help="websocket url with username and password",
+    required=True,
 )
 @click.option(
     "-R",
     "--rulefile",
+    "rulefiles",
     multiple=True,
     type=click.Path(exists=True, dir_okay=False),
     help="rule file absolute path",
 )
-@click.option("-NS", "--nameserver", multiple=True, help="set dns servers")
 @click.option(
-    "-c",
-    "--configuration",
-    default=os.path.join(os.path.expanduser("~/.websocks"), "config.yml"),
+    "-NS", "--nameserver", "nameservers", multiple=True, help="set dns servers"
 )
 @click.argument("address", type=click.Tuple([str, int]), default=("127.0.0.1", 3128))
 def client(
-    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"],
-    rulefile: typing.List[str],
-    server_url: str,
-    nameserver: typing.List[str],
+    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "BLACK", "WHITE"],
+    rulefiles: typing.List[str],
+    tcp_server: str,
+    nameservers: typing.List[str],
     address: typing.Tuple[str, int],
-    configuration: str,
 ):
-    if os.path.isfile(configuration):
-        if configuration.endswith(".json"):
-            config.from_json_file(configuration)
-        else:
-            config.from_yaml_file(configuration)
-    else:
-        logging.warning(f"The file that don't exist: {configuration}")
-
-    new_config = {}
-    if address != ("127.0.0.1", 3128):
-        new_config["host"] = address[0]
-        new_config["port"] = address[1]
-    if proxy_policy != "AUTO":
-        new_config["proxy_policy"] = proxy_policy
-    if rulefile:
-        new_config["rulefiles"] = rulefile
-    if server_url:
-        new_config["servers"] = [server_url]
-    if nameserver:
-        new_config["nameservers"] = nameserver
-    config._update(new_config)
-
-    FilterRule(config.rulefiles)
-
-    Client(config.host, config.port, config.nameservers).run()
+    FilterRule(rulefiles)
+    Client(
+        client_host=address[0],
+        client_port=address[1],
+        tcp_server=tcp_server,
+        nameservers=nameservers,
+        proxy_policy=proxy_policy,
+    ).run()
 
 
 @main.command(help="Download rule file in local")
@@ -106,47 +84,16 @@ def download(namelist: typing.List[str]):
 
 @main.command(help="Check whether the host needs pass proxy")
 @click.option(
-    "-P",
-    "--proxy-policy",
-    default="AUTO",
-    type=click.Choice(["AUTO", "PROXY", "DIRECT", "GFW"]),
-    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; GFW: use rule list",
-)
-@click.option(
     "-R",
     "--rulefile",
+    "rulefiles",
     multiple=True,
     type=click.Path(exists=True, dir_okay=False),
     help="rule file absolute path",
 )
-@click.option(
-    "-c",
-    "--configuration",
-    default=os.path.join(os.path.expanduser("~/.websocks"), "config.yml"),
-)
 @click.argument("host")
-def check(
-    proxy_policy: Literal["AUTO", "PROXY", "DIRECT", "GFW"],
-    rulefile: typing.List[str],
-    configuration: str,
-    host: str,
-):
-    if os.path.isfile(configuration):
-        if configuration.endswith(".json"):
-            config.from_json_file(configuration)
-        else:
-            config.from_yaml_file(configuration)
-    else:
-        logging.warning(f"The file that don't exist: {configuration}")
-
-    new_config = {}
-    if proxy_policy != "AUTO":
-        new_config["proxy_policy"] = proxy_policy
-    if rulefile:
-        new_config["rulefiles"] = rulefile
-    config._update(new_config)
-
-    FilterRule(config.rulefiles)
+def check(rulefiles: typing.List[str], host: str):
+    FilterRule(rulefiles)
 
     need_proxy = judge(host)
     if need_proxy is True:
