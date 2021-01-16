@@ -52,9 +52,7 @@ class C:
         log_file = open(log_path, "w+", encoding="utf8")
         log_file.write(command + "\n")
         log_file.flush()
-        cls.process = subprocess.Popen(
-            command, stderr=log_file, stdout=log_file, shell=True
-        )
+        cls.process = subprocess.Popen(command, stderr=log_file, stdout=log_file)
         return cls.process
 
     @classmethod
