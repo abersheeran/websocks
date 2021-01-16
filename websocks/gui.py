@@ -1,6 +1,5 @@
 import os
 import sys
-import signal
 import subprocess
 import platform
 import configparser
@@ -9,8 +8,7 @@ from functools import partial
 import PySimpleGUI as sg
 
 from .rule import FilterRule
-
-signal.signal(signal.SIGINT, lambda _, __: sys.exit(0))
+from .utils import set_proxy
 
 config_path = os.path.expanduser("~/.websocks/config.ini")
 log_path = os.path.join(os.path.dirname(config_path), "run.log")
@@ -53,6 +51,7 @@ class C:
 
         log_file = open(log_path, "w+", encoding="utf8")
         log_file.write(command + "\n")
+        log_file.flush()
         cls.process = subprocess.Popen(
             command, stderr=log_file, stdout=log_file, shell=True
         )
@@ -67,6 +66,7 @@ class C:
     def stop(cls) -> None:
         if cls.process is not None:
             cls.process.terminate()
+            cls.process.wait()
 
 
 def open_in_system_editor(filepath: str) -> None:
@@ -139,7 +139,7 @@ def main():
     message_clicked = lambda: None
 
     try:
-        if C.restart().poll() is not None:
+        if C.start().poll() is not None:
             message_clicked = partial(open_in_system_editor, log_path)
             tray.show_message(
                 "服务启动失败",
@@ -161,12 +161,13 @@ def main():
 
     while True:
         menu_item = tray.read()
-        print(menu_item)
         try:
             if menu_item in (sg.EVENT_SYSTEM_TRAY_ICON_DOUBLE_CLICKED,):
                 pass
             elif menu_item == "关闭程序":
-                sys.exit(0)
+                set_proxy(False, "")
+                C.stop()
+                break
             elif menu_item == "__MESSAGE_CLICKED__":
                 message_clicked()
             elif menu_item == "编写配置":
