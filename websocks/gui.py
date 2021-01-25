@@ -50,8 +50,6 @@ class C:
             command += default["address"]
 
         log_file = open(log_path, "w+", encoding="utf8")
-        log_file.write(command + "\n")
-        log_file.flush()
         cls.process = subprocess.Popen(command, stderr=log_file, stdout=log_file)
         return cls.process
 
@@ -83,6 +81,8 @@ def main():
         ["WebSocks Client Manager"],
         [
             "重启服务",
+            "关闭服务",
+            "---",
             "编写配置",
             "查看日志",
             "更新名单",
@@ -134,7 +134,7 @@ def main():
                     with open(config_path, "w+") as file:
                         file.writelines(["[DEFAULT]", ""])
                 open_in_system_editor(config_path)
-            elif menu_item == "重启服务":
+            elif menu_item == "启动/重启服务":
                 if C.restart().poll() is not None:
                     message_clicked = partial(open_in_system_editor, log_path)
                     tray.show_message(
@@ -148,10 +148,12 @@ def main():
                         "HTTP/Socks 代理服务器已经成功在本地启动",
                         messageicon=sg.SYSTEM_TRAY_MESSAGE_ICON_INFORMATION,
                     )
+            elif menu_item == "关闭服务":
+                C.stop()
             elif menu_item == "查看日志":
-                if not os.path.exists(config_path):
-                    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-                    with open(config_path, "w+") as file:
+                if not os.path.exists(log_path):
+                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                    with open(log_path, "w+") as file:
                         ...
                 open_in_system_editor(log_path)
             elif menu_item == "更新名单":

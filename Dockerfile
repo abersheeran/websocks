@@ -4,11 +4,8 @@ WORKDIR /app
 
 COPY . /app
 
-# dephell need pip < 20
-RUN python -m pip install "pip<20"
-
-RUN pip3 install dephell[full]
-RUN dephell deps convert --to=setup.py --from=pyproject.toml
+RUN pip3 install poetry2setup
+RUN poetry2setup > setup.py
 
 FROM python:3.7-alpine
 
