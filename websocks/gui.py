@@ -134,7 +134,7 @@ def main():
                     with open(config_path, "w+") as file:
                         file.writelines(["[DEFAULT]", ""])
                 open_in_system_editor(config_path)
-            elif menu_item == "启动/重启服务":
+            elif menu_item == "重启服务":
                 if C.restart().poll() is not None:
                     message_clicked = partial(open_in_system_editor, log_path)
                     tray.show_message(
