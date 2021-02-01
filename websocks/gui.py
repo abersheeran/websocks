@@ -36,7 +36,7 @@ class C:
             command += " " + " ".join(
                 [
                     f"--nameserver {dns.strip()}"
-                    for dns in default["nameservers"].split(",")
+                    for dns in default["nameservers"].split(";")
                 ]
             )
         if "rulefiles" in default:
@@ -63,6 +63,7 @@ class C:
         if cls.process is not None:
             cls.process.terminate()
             cls.process.wait()
+        set_proxy(False, "")
 
 
 def open_in_system_editor(filepath: str) -> None:
@@ -84,6 +85,7 @@ def main():
             "关闭服务",
             "---",
             "编写配置",
+            "编写规则",
             "查看日志",
             "更新名单",
             "---",
@@ -123,7 +125,6 @@ def main():
             if menu_item in (sg.EVENT_SYSTEM_TRAY_ICON_DOUBLE_CLICKED,):
                 pass
             elif menu_item == "关闭程序":
-                set_proxy(False, "")
                 C.stop()
                 break
             elif menu_item == "__MESSAGE_CLICKED__":
@@ -134,6 +135,18 @@ def main():
                     with open(config_path, "w+") as file:
                         file.writelines(["[DEFAULT]", ""])
                 open_in_system_editor(config_path)
+            elif menu_item == "编写规则":
+                config = configparser.ConfigParser()
+                config.read(config_path)
+                default = config["DEFAULT"]
+                if "rulefiles" not in default:
+                    rulefile = os.path.expanduser("~/.websocks/rules.txt")
+                    default["rulefiles"] = rulefile
+                    with open(config_path, "w+") as file:
+                        config.write(file)
+                else:
+                    rulefile = default["rulefiles"].split(";")[0]
+                open_in_system_editor(rulefile)
             elif menu_item == "重启服务":
                 if C.restart().poll() is not None:
                     message_clicked = partial(open_in_system_editor, log_path)
@@ -143,6 +156,7 @@ def main():
                         messageicon=sg.SYSTEM_TRAY_MESSAGE_ICON_CRITICAL,
                     )
                 else:
+                    message_clicked = lambda: None
                     tray.show_message(
                         "服务启动成功",
                         "HTTP/Socks 代理服务器已经成功在本地启动",
@@ -159,6 +173,7 @@ def main():
             elif menu_item == "更新名单":
                 FilterRule.download_gfwlist()
                 FilterRule.download_whitelist()
+                message_clicked = lambda: None
                 tray.show_message(
                     "更新名单完成",
                     "更新名单完成",
