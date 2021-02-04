@@ -107,7 +107,7 @@ class FilterRule(metaclass=Singleton):
             if host.endswith(line[2:]):
                 return True
         elif line[0] == ".":
-            if host.endswith(line) or host == line:
+            if host.endswith(line) or host == line[1:]:
                 return True
         elif line.startswith("@@"):
             _ = self._judge(line[2:], host)
