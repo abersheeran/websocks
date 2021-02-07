@@ -5,7 +5,7 @@ import platform
 import configparser
 from functools import partial
 
-import PySimpleGUI as sg
+import PySimpleGUIQt as sg
 
 from .rule import FilterRule
 from .utils import set_proxy
@@ -79,7 +79,7 @@ def main():
     sg.change_look_and_feel("SystemDefault")
 
     menu = [
-        ["WebSocks Client Manager"],
+        "WebSocks Client Manager",
         [
             "重启服务",
             "关闭服务",
@@ -164,6 +164,12 @@ def main():
                     )
             elif menu_item == "关闭服务":
                 C.stop()
+                message_clicked = lambda: None
+                tray.show_message(
+                    "本地服务关闭",
+                    "HTTP/Socks 本地代理服务已关闭，系统代理设置已重置",
+                    messageicon=sg.SYSTEM_TRAY_MESSAGE_ICON_INFORMATION,
+                )
             elif menu_item == "查看日志":
                 if not os.path.exists(log_path):
                     os.makedirs(os.path.dirname(log_path), exist_ok=True)
