@@ -141,6 +141,8 @@ def main():
                 default = config["DEFAULT"]
                 if "rulefiles" not in default:
                     rulefile = os.path.expanduser("~/.websocks/rules.txt")
+                    with open(rulefile, "w+") as file:
+                        pass
                     default["rulefiles"] = rulefile
                     with open(config_path, "w+") as file:
                         config.write(file)
