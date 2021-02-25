@@ -6,7 +6,6 @@ import base64
 import asyncio
 import typing
 import logging
-import atexit
 import ipaddress
 from string import capwords
 from http import HTTPStatus
@@ -24,7 +23,7 @@ from websockets import WebSocketClientProtocol
 from .types import Socket
 from .socket import TCPSocket
 from .exceptions import WebSocksImplementationError, WebSocksRefused
-from .utils import onlyfirst, set_proxy
+from .utils import onlyfirst
 from .config import convert_tcp_url, TCP
 from . import rule
 
@@ -221,7 +220,10 @@ class Client:
         elif first_packet[0] == 5:  # Socks5
             handler = getattr(self, "socks5")
         else:  # HTTP
-            method = first_packet.split(b" ", maxsplit=1)[0].decode("ascii")
+            try:
+                method = first_packet.split(b" ", maxsplit=1)[0].decode("ascii")
+            except UnicodeDecodeError:
+                return await TCPSocket(reader, writer).close()
             handler = getattr(self, "http_" + method.lower(), self.http_default)
 
         try:
@@ -423,7 +425,7 @@ class Client:
                 need_proxy = True if ip == host else rule.judge(host)
             # 黑名单代理策略时: 未知均不代理
             # 白名单代理策略时: 未知均需代理
-            if self.proxy_policy not in ("BLACK", "WHITE"):
+            if self.proxy_policy in ("BLACK", "WHITE"):
                 need_proxy = (
                     self.proxy_policy == "WHITE" if need_proxy is None else need_proxy
                 )
@@ -469,12 +471,6 @@ class Client:
         server = await asyncio.start_server(self.dispatch, self.host, self.port)
         server_address = server.sockets[0].getsockname()
         logger.info(f"HTTP/Socks Server serving on {server_address}")
-
-        proxy_server = f"http://127.0.0.1:{server_address[1]}"
-        set_proxy(True, proxy_server)
-        atexit.register(set_proxy, False, "")
-        logger.info(f"Set system proxy: {proxy_server}")
-
         await server.serve_forever()
 
     def run(self) -> None:
