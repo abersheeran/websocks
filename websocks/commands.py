@@ -13,6 +13,7 @@ import click
 from .rule import FilterRule, judge
 from .client import Client
 from .server import Server
+from .utils import get_proxy, set_proxy
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +36,11 @@ def main(debug: bool = False) -> None:
     "--proxy-policy",
     default="AUTO",
     type=click.Choice(["AUTO", "PROXY", "DIRECT", "BLACK", "WHITE"]),
-    help="AUTO: auto judge; PROXY: always proxy; DIRECT: always direct; BLACK: only proxy black rules;",
+    help=(
+        "AUTO: auto judge; PROXY: always proxy; DIRECT: always direct;"
+        " BLACK: only proxy black rules; WHITE: only direct white rules;"
+    ),
+    show_default=True,
 )
 @click.option(
     "-T",
@@ -102,6 +107,34 @@ def check(rulefiles: typing.List[str], host: str):
         click.secho("Don't know.")
     elif need_proxy is False:
         click.secho("Don't need proxy.", fg="green")
+
+
+@click.group(help="Manage system proxy settings")
+def proxy():
+    pass
+
+
+@proxy.command(help="Set system proxy settings")
+@click.argument("address")
+def set(address: str):
+    set_proxy(True, address)
+
+
+@proxy.command(help="Display system proxy settings")
+def get():
+    enable, address = get_proxy()
+    if address:
+        click.secho(f"System proxy: {address} {'√' if enable else 'X'}")
+    else:
+        click.secho("No system proxy")
+
+
+@proxy.command(help="Clear system proxy settings")
+def clear():
+    set_proxy(False, "")
+
+
+main.add_command(proxy)
 
 
 @main.command(help="Create websocks server")
