@@ -4,6 +4,7 @@ import subprocess
 import platform
 import configparser
 from functools import partial
+from pathlib import Path
 
 import PySimpleGUIQt as sg
 
@@ -29,7 +30,7 @@ class C:
             raise RuntimeError("配置文件中必须指定 tcp-server 项")
 
         command = (
-            f"{sys.executable} -m websocks client --tcp-server {default.get('tcp-server')}"
+            f"{sys.executable} -m websocks client --tcp-server {default['tcp-server']}"
             f" --proxy-policy {default.get('proxy-policy', 'AUTO')}"
         )
         if "nameservers" in default:
@@ -47,10 +48,17 @@ class C:
                 ]
             )
         if "address" in default:
-            command += default["address"]
+            command += " " + default["address"]
 
         log_file = open(log_path, "w+", encoding="utf8")
         cls.process = subprocess.Popen(command, stderr=log_file, stdout=log_file)
+        if cls.process.poll() is None:
+            port = (
+                default.get("address", "127.0.0.1 3128")
+                .strip()
+                .split(" ", maxsplit=1)[1]
+            )
+            set_proxy(True, f"http://127.0.0.1:{port}")
         return cls.process
 
     @classmethod
@@ -141,8 +149,7 @@ def main():
                 default = config["DEFAULT"]
                 if "rulefiles" not in default:
                     rulefile = os.path.expanduser("~/.websocks/rules.txt")
-                    with open(rulefile, "w+") as file:
-                        pass
+                    Path(rulefile).touch()
                     default["rulefiles"] = rulefile
                     with open(config_path, "w+") as file:
                         config.write(file)
