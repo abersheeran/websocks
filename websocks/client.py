@@ -1,5 +1,4 @@
 from __future__ import annotations
-import re
 
 import sys
 import json
@@ -18,6 +17,7 @@ else:
     from typing import Literal
 
 import aiodns
+import h11
 import websockets
 from websockets import WebSocketClientProtocol
 
@@ -216,7 +216,10 @@ class Client:
         for index, data in enumerate(first_packet):
             reader._buffer.insert(index, data)
 
-        if first_packet[0] == 4:  # Socks4
+        if not first_packet:
+            writer.close()
+            await writer.wait_closed()
+        elif first_packet[0] == 4:  # Socks4
             handler = getattr(self, "socks4")
         elif first_packet[0] == 5:  # Socks5
             handler = getattr(self, "socks5")
