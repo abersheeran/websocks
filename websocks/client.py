@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 import sys
 import json
@@ -262,7 +263,10 @@ class Client:
         except OSError:
             logger.info(f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) × (general)")
         else:
-            logger.info(f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) √")
+            proxy_or_direct = "PROXY" if self.is_proxyed(remote) else "DIRECT"
+            logger.info(
+                f"HTTP_{capwords(method)} ('{dsthost}', {dstport}) {proxy_or_direct} √"
+            )
             for index, data in enumerate(
                 (" ".join([method, urlpath, version]) + "\r\n").encode("ascii")
             ):
@@ -303,7 +307,8 @@ class Client:
             logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) × (general)")
         else:
             await reply(version, HTTPStatus.OK)
-            logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) √")
+            proxy_or_direct = "PROXY" if self.is_proxyed(remote) else "DIRECT"
+            logger.info(f"HTTP_Connect ('{dsthost}', {dstport}) {proxy_or_direct} √")
             await self.bridge(remote, sock)
             await remote.close()
 
@@ -331,7 +336,8 @@ class Client:
         else:
             await sock.send(b"\x00\x90")
             await sock.send(data[2:8])
-            logger.info(f"Socks4_Connect ('{dsthost}', {dstport}) √")
+            proxy_or_direct = "PROXY" if self.is_proxyed(remote) else "DIRECT"
+            logger.info(f"Socks4_Connect ('{dsthost}', {dstport}) {proxy_or_direct} √")
             await self.bridge(remote, sock)
             await remote.close()
 
@@ -373,7 +379,8 @@ class Client:
         else:
             await sock.send(b"\x05\x00\x00")
             await sock.send(data[3:])
-            logger.info(f"Socks5_Connect ('{dsthost}', {dstport}) √")
+            proxy_or_direct = "PROXY" if self.is_proxyed(remote) else "DIRECT"
+            logger.info(f"Socks5_Connect ('{dsthost}', {dstport}) {proxy_or_direct} √")
             await self.bridge(remote, sock)
             await remote.close()
 
@@ -449,6 +456,9 @@ class Client:
         else:
             remote = await TCPSocket.create_connection(ip, port)
         return remote
+
+    def is_proxyed(self, connection: Socket) -> bool:
+        return isinstance(connection, WebSocket)
 
     @staticmethod
     async def bridge(s0: Socket, s1: Socket) -> None:
