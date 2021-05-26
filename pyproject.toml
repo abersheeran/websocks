@@ -4,7 +4,7 @@ description = "A websocket-based socks5 proxy."
 license = "MIT"
 name = "websocks"
 readme = "README.md"
-version = "0.4.2"
+version = "0.4.3"
 
 classifiers = [
   "Programming Language :: Python :: 3",
