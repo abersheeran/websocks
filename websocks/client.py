@@ -280,10 +280,10 @@ class Client:
 
             async def server_task():
                 while True:
-                    server.receive_data(await sock.recv())
                     event = server.next_event()
                     logger.debug(f"HTTP Proxy Server: {event}")
                     if event is h11.NEED_DATA:
+                        server.receive_data(await sock.recv())
                         continue
                     elif type(event) is h11.Request:
                         event.target = (
@@ -303,10 +303,10 @@ class Client:
 
             async def client_task():
                 while True:
-                    client.receive_data(await remote.recv())
                     event = client.next_event()
                     logger.debug(f"HTTP Proxy Client: {event}")
                     if event is h11.NEED_DATA:
+                        client.receive_data(await remote.recv())
                         continue
                     elif type(event) in (h11.Response, h11.Data):
                         await sock.send(server.send(event))
@@ -316,7 +316,7 @@ class Client:
                     else:
                         break
 
-            await onlyfirst(server_task(), client_task())
+            await asyncio.gather(server_task(), client_task(), return_exceptions=True)
         finally:
             await remote.close()
 
