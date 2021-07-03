@@ -51,7 +51,7 @@ class C:
             command += " " + default["address"]
 
         log_file = open(log_path, "w+", encoding="utf8")
-        cls.process = subprocess.Popen(command, stderr=log_file, stdout=log_file)
+        cls.process = subprocess.Popen(command.split(" "), stderr=log_file, stdout=log_file)
         if cls.process.poll() is None:
             port = (
                 default.get("address", "127.0.0.1 3128")
