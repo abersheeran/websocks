@@ -6,7 +6,7 @@ import configparser
 from functools import partial
 from pathlib import Path
 
-import PySimpleGUIQt as sg
+import PySimpleGUIWx as sg
 
 from .rule import FilterRule
 from .utils import set_proxy

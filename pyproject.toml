@@ -25,7 +25,7 @@ websocks-gui = 'websocks.gui:main'
 [tool.poetry.dependencies]
 python = "^3.7"
 
-PySimpleGUIQt = {version = "^0.35.0", optional = true}
+PySimpleGUIWx = {version = "^0.17.2", optional = true}
 aiodns = "^2.0.0"
 click = "^7.0"
 h11 = "^0.12.0"
@@ -34,7 +34,7 @@ uvloop = {version = "*", markers = "sys_platform != 'win32' and sys_platform != 
 websockets = "^8.1"
 
 [tool.poetry.extras]
-GUI = ["PySimpleGUIQt"]
+GUI = ["PySimpleGUIWx"]
 
 [tool.poetry.dev-dependencies]
 black = {version = "^20.8b1", allow-prereleases = true}
