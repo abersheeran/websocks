@@ -274,51 +274,51 @@ class Client:
             for index, data in enumerate(firstline):
                 sock.r._buffer.insert(index, data)
 
-        server = h11.Connection(our_role=h11.SERVER)
-        client = h11.Connection(our_role=h11.CLIENT)
-        try:
+            server = h11.Connection(our_role=h11.SERVER)
+            client = h11.Connection(our_role=h11.CLIENT)
+            try:
 
-            async def server_task():
-                while True:
-                    event = server.next_event()
-                    logger.debug(f"HTTP Proxy Server: {event}")
-                    if event is h11.NEED_DATA:
-                        server.receive_data(await sock.recv())
-                        continue
-                    elif type(event) is h11.Request:
-                        event.target = (
-                            b"/"
-                            + event.target.split(b"://", maxsplit=1)[1].split(
-                                b"/", maxsplit=1
-                            )[1]
-                        )
-                        await remote.send(client.send(event))
-                    elif type(event) is h11.Data:
-                        await remote.send(client.send(event))
-                    elif type(event) in (h11.EndOfMessage, h11.ConnectionClosed):
-                        await remote.send(client.send(h11.EndOfMessage()))
-                        break
-                    else:
-                        break
+                async def server_task():
+                    while True:
+                        event = server.next_event()
+                        logger.debug(f"HTTP Proxy Server: {event}")
+                        if event is h11.NEED_DATA:
+                            server.receive_data(await sock.recv())
+                            continue
+                        elif type(event) is h11.Request:
+                            event.target = (
+                                b"/"
+                                + event.target.split(b"://", maxsplit=1)[1].split(
+                                    b"/", maxsplit=1
+                                )[1]
+                            )
+                            await remote.send(client.send(event))
+                        elif type(event) is h11.Data:
+                            await remote.send(client.send(event))
+                        elif type(event) in (h11.EndOfMessage, h11.ConnectionClosed):
+                            await remote.send(client.send(h11.EndOfMessage()))
+                            break
+                        else:
+                            break
 
-            async def client_task():
-                while True:
-                    event = client.next_event()
-                    logger.debug(f"HTTP Proxy Client: {event}")
-                    if event is h11.NEED_DATA:
-                        client.receive_data(await remote.recv())
-                        continue
-                    elif type(event) in (h11.Response, h11.Data):
-                        await sock.send(server.send(event))
-                    elif type(event) in (h11.EndOfMessage, h11.ConnectionClosed):
-                        await sock.send(server.send(h11.EndOfMessage()))
-                        break
-                    else:
-                        break
+                async def client_task():
+                    while True:
+                        event = client.next_event()
+                        logger.debug(f"HTTP Proxy Client: {event}")
+                        if event is h11.NEED_DATA:
+                            client.receive_data(await remote.recv())
+                            continue
+                        elif type(event) in (h11.Response, h11.Data):
+                            await sock.send(server.send(event))
+                        elif type(event) in (h11.EndOfMessage, h11.ConnectionClosed):
+                            await sock.send(server.send(h11.EndOfMessage()))
+                            break
+                        else:
+                            break
 
-            await asyncio.gather(server_task(), client_task(), return_exceptions=True)
-        finally:
-            await remote.close()
+                await asyncio.gather(server_task(), client_task(), return_exceptions=True)
+            finally:
+                await remote.close()
 
     async def http_connect(self, sock: TCPSocket) -> None:
         async def reply(http_version: str, status_code: HTTPStatus) -> None:
